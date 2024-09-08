@@ -25,7 +25,6 @@ import (
 	"github.com/camunda/camunda/clients/go/v8/internal/utils"
 	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
 	"github.com/camunda/camunda/clients/go/v8/pkg/zbc"
-	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
@@ -206,6 +205,7 @@ func (s *ContainerSuite) SetupSuite() {
 				"ZEEBE_BROKER_NETWORK_HOST":           "0.0.0.0",
 				"ZEEBE_BROKER_NETWORK_ADVERTISEDHOST": "0.0.0.0",
 			},
+			AlwaysPullImage: true,
 		},
 		Started: true,
 	}
@@ -216,10 +216,6 @@ func (s *ContainerSuite) SetupSuite() {
 	}
 
 	ctx := context.Background()
-	err = validateImageExists(ctx, s.ContainerImage)
-	if err != nil {
-		s.T().Fatal(err)
-	}
 
 	s.container, err = testcontainers.GenericContainer(ctx, req)
 	if err != nil {
@@ -257,21 +253,4 @@ func (s *ContainerSuite) TearDownSuite() {
 	if err != nil {
 		s.T().Fatal(err)
 	}
-}
-
-func validateImageExists(ctx context.Context, image string) error {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
-	if err != nil {
-		return fmt.Errorf("failed creating docker client: %w", err)
-	}
-
-	_, _, err = dockerClient.ImageInspectWithRaw(ctx, image)
-	if err != nil {
-		if client.IsErrNotFound(err) {
-			return fmt.Errorf("a Docker image containing Zeebe must be built and named '%s'", image)
-		}
-
-		return err
-	}
-	return nil
 }

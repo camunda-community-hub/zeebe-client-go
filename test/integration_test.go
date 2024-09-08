@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const dockerImageName = "camunda/zeebe:current-test"
+const dockerImageName = "camunda/zeebe:8.6.0-alpha5"
 
 type integrationTestSuite struct {
 	*containersuite.ContainerSuite
