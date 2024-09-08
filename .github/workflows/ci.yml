@@ -1,0 +1,56 @@
+name: Go Client CI
+on: 
+  push:
+    branches: main
+  pull_request: { }
+  workflow_dispatch: { }
+jobs:
+  go-client:
+    name: Go client tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Build Go
+        shell: bash
+        id: build-go
+        working-directory: cmd/zbctl
+        run: ./build.sh
+      - name: Run Go tests
+        working-directory: .
+        run: go test -mod=vendor -v ./...
+  go-lint:
+    name: Go linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          # fixed to avoid triggering false positive; see https://github.com/golangci/golangci-lint-action/issues/535
+          version: v1.55.2
+          # caching issues, see: https://github.com/golangci/golangci-lint-action/issues/244#issuecomment-1052190775
+          skip-pkg-cache: true
+          skip-build-cache: true
+          working-directory: .
+  go-apidiff:
+    if: github.event_name == 'pull_request'
+    name: Go Backwards Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - uses: joelanford/go-apidiff@main
