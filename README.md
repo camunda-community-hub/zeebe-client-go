@@ -1,3 +1,6 @@
+[![Community Extension](https://img.shields.io/badge/Community%20Extension-An%20open%20source%20community%20maintained%20project-FF4700)](https://github.com/camunda-community-hub/community)
+[![](https://img.shields.io/badge/Lifecycle-Incubating-blue)](https://github.com/Camunda-Community-Hub/community/blob/main/extension-lifecycle.md#incubating-)
+
 # Zeebe Go Client
 
 The Zeebe Go client is a Go wrapper implementation around the GRPC (https://github.com/grpc/grpc) generated Zeebe client. It makes it possible to communicate with Zeebe Broker via the GRPC protocol, see the [Zeebe documentation](https://docs.zeebe.io/) for more information about the Zeebe project.
