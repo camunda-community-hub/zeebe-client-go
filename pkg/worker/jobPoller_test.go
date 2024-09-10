@@ -17,17 +17,18 @@ package worker
 
 import (
 	"context"
-	"github.com/camunda/camunda/clients/go/v8/internal/mock_pb"
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"github.com/camunda/camunda/clients/go/v8/pkg/entities"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/suite"
 	"io"
 	"math"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/internal/mock_pb"
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/suite"
 )
 
 type JobPollerSuite struct {

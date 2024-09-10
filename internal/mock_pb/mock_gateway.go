@@ -8,7 +8,7 @@ import (
 	context "context"
 	reflect "reflect"
 
-	pb "github.com/camunda/camunda/clients/go/v8/pkg/pb"
+	pb "github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 	gomock "github.com/golang/mock/gomock"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"

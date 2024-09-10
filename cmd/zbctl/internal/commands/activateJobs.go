@@ -18,8 +18,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/camunda/camunda/clients/go/v8/pkg/commands"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 	"github.com/spf13/cobra"
 )
 

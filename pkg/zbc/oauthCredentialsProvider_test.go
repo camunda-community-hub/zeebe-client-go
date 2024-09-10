@@ -16,16 +16,6 @@ package zbc
 
 import (
 	"fmt"
-	"github.com/camunda/camunda/clients/go/v8/pkg/entities"
-	"github.com/camunda/camunda/clients/go/v8/pkg/worker"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"io"
 	"net"
 	"net/http"
@@ -36,6 +26,17 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/worker"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 type mutableToken struct {

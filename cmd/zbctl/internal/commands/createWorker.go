@@ -25,9 +25,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/camunda/camunda/clients/go/v8/pkg/commands"
-	"github.com/camunda/camunda/clients/go/v8/pkg/entities"
-	"github.com/camunda/camunda/clients/go/v8/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/worker"
 	"github.com/spf13/cobra"
 )
 

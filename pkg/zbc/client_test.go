@@ -18,13 +18,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"google.golang.org/grpc/metadata"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
@@ -32,7 +33,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 )
 
 type clientTestSuite struct {

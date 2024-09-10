@@ -18,15 +18,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
+	"net"
+	"strings"
+	"testing"
+
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"net"
-	"strings"
-	"testing"
 )
 
 // request data

@@ -15,14 +15,15 @@
 package worker
 
 import (
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"github.com/camunda/camunda/clients/go/v8/pkg/commands"
-	"github.com/camunda/camunda/clients/go/v8/pkg/entities"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
-	"github.com/stretchr/testify/suite"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/stretchr/testify/suite"
 )
 
 type JobDispatcherSuite struct {

@@ -19,7 +19,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
 	"github.com/spf13/cobra"
 )
 

@@ -18,16 +18,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/camunda/camunda/clients/go/v8/pkg/zbc"
-	"github.com/docker/go-connections/nat"
-	"github.com/stretchr/testify/suite"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/zbc"
+	"github.com/docker/go-connections/nat"
+	"github.com/stretchr/testify/suite"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var publicPort nat.Port

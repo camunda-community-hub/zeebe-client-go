@@ -18,8 +18,8 @@ package worker
 import (
 	"sync"
 
-	"github.com/camunda/camunda/clients/go/v8/pkg/commands"
-	"github.com/camunda/camunda/clients/go/v8/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
 )
 
 type JobClient interface {

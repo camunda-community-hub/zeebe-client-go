@@ -16,12 +16,13 @@ package commands
 
 import (
 	"context"
-	"github.com/camunda/camunda/clients/go/v8/internal/mock_pb"
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
-	"github.com/golang/mock/gomock"
 	"os"
 	"testing"
+
+	"github.com/camunda-community-hub/zeebe-client-go/internal/mock_pb"
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/golang/mock/gomock"
 )
 
 func TestDeployCommand_AddResourceFile(t *testing.T) {

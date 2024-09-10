@@ -16,9 +16,10 @@ package commands
 
 import (
 	"context"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
 	"log"
 	"os"
+
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 )
 
 type DeployResourceCommand struct {

@@ -17,8 +17,8 @@ package commands
 import (
 	"context"
 	"errors"
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"github.com/camunda/camunda/clients/go/v8/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
 	"github.com/spf13/cobra"
 	"os"
 	"strconv"

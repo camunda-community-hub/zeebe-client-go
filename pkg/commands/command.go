@@ -16,9 +16,10 @@ package commands
 
 import (
 	"context"
-	"github.com/camunda/camunda/clients/go/v8/internal/utils"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
 	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 )
 
 const (

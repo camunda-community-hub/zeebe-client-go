@@ -16,11 +16,12 @@ package utils
 
 import (
 	"fmt"
-	"github.com/camunda/camunda/clients/go/v8/pkg/pb"
+	"time"
+
+	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/protobuf/proto"
-	"time"
 )
 
 const DefaultTestTimeout = 5 * time.Second
