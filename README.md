@@ -18,6 +18,9 @@ mockgen -source=pkg/pb/gateway.pb.go GatewayClient,Gateway_ActivateJobsClient > 
 
 ### Integration tests
 
+Integration tests run zeebe in a container to test the client against. The version of Zeebe used is managed via 
+a constant in [`internal/containersuite/containerSuite.go`](internal/containersuite/containerSuite.go#L36).
+
 To add new zbctl tests, you must generate a golden file with the expected output of the command you are testing. The tests ignore numbers so you can leave any keys or timestamps in your golden file, even though these will most likely be different from test command's output. However, non-numeric variables are not ignored. For instance, the help menu contains:
 
 ```

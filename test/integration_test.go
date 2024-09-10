@@ -32,8 +32,6 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const dockerImageName = "camunda/zeebe:8.6.0-alpha5"
-
 type integrationTestSuite struct {
 	*containersuite.ContainerSuite
 	client zbc.Client
@@ -42,8 +40,7 @@ type integrationTestSuite struct {
 func TestIntegration(t *testing.T) {
 	suite.Run(t, &integrationTestSuite{
 		ContainerSuite: &containersuite.ContainerSuite{
-			WaitTime:       time.Second,
-			ContainerImage: dockerImageName,
+			WaitTime: time.Second,
 		},
 	})
 }
@@ -451,8 +448,7 @@ func TestSlowWorker(t *testing.T) {
 	suite.Run(t, &slowWorkerSuite{
 		integrationTestSuite: &integrationTestSuite{
 			ContainerSuite: &containersuite.ContainerSuite{
-				WaitTime:       time.Second,
-				ContainerImage: dockerImageName,
+				WaitTime: time.Second,
 				Env: map[string]string{
 					"ZEEBE_DEBUG":     "true",
 					"ZEEBE_LOG_LEVEL": "debug",

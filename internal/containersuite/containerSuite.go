@@ -33,6 +33,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const dockerImageName = "camunda/zeebe:8.6.0-alpha5"
+
 type zeebeWaitStrategy struct {
 	waitTime time.Duration
 }
@@ -152,8 +154,6 @@ func isStable(res *pb.TopologyResponse) bool {
 type ContainerSuite struct {
 	// WaitTime specifies the wait period before checking if the container is up
 	WaitTime time.Duration
-	// ContainerImage is the ID of docker image to be used
-	ContainerImage string
 	// GatewayAddress is the contact point of the spawned Zeebe container specified in the format 'host:port'
 	GatewayAddress string
 	GatewayHost    string
@@ -198,14 +198,13 @@ func (s *ContainerSuite) SetupSuite() {
 	var err error
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        s.ContainerImage,
+			Image:        dockerImageName,
 			ExposedPorts: []string{"26500/tcp", "9600/tcp"},
 			WaitingFor:   zeebeWaitStrategy{waitTime: s.WaitTime},
 			Env: map[string]string{
 				"ZEEBE_BROKER_NETWORK_HOST":           "0.0.0.0",
 				"ZEEBE_BROKER_NETWORK_ADVERTISEDHOST": "0.0.0.0",
 			},
-			AlwaysPullImage: true,
 		},
 		Started: true,
 	}
