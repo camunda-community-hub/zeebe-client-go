@@ -26,14 +26,14 @@ jobs:
           pushd internal/embedded
           echo "${RELEASE_VERSION}" > data/VERSION
           git commit -am "build(project): update go embedded version data"
-      - name: Build Go Client
+      - name: Run Go Client tests
+        working-directory: .
+        run: go test -mod=vendor -v ./...
+      - name: Build Go Client release artifacts
         shell: bash
         id: build-go
         working-directory: cmd/zbctl
         run: ./build.sh
-      - name: Run Go Client tests
-        working-directory: .
-        run: go test -mod=vendor -v ./...
       - name: Go Post-Release
         run: |
           # Publish Go tag for the release
