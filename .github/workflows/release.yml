@@ -19,7 +19,7 @@ jobs:
           cache: true
       - name: Set and commit Go Client version
         run: |
-          pushd clients/go/internal/embedded
+          pushd internal/embedded
           echo "${RELEASE_VERSION}" > data/VERSION
           git commit -am "build(project): update go embedded version data"
       - name: Build Go Client
