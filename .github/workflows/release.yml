@@ -38,9 +38,7 @@ jobs:
         run: |
           # Publish Go tag for the release
           git tag "v${RELEASE_VERSION}"
-          if [ "$PUSH_CHANGES" = "true" ]; then
-            git push origin "v${RELEASE_VERSION}"
-          fi
+          git push origin "v${RELEASE_VERSION}"
       - name: Create Github release
         uses: ncipollo/release-action@v1
         with:
