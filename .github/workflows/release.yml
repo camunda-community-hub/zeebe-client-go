@@ -8,6 +8,10 @@ jobs:
     runs-on: ubuntu-latest    
     steps:
       - uses: actions/checkout@v4
+      - name: Git User Setup
+        run: |
+          git config --global user.email "github-actions[release]"
+          git config --global user.name "github-actions[release]@users.noreply.github.com"
       - name: Get Release version
         shell: bash
         run: |
