@@ -39,6 +39,7 @@ jobs:
           # Publish Go tag for the release
           git tag "v${RELEASE_VERSION}"
           git push origin "v${RELEASE_VERSION}"
+          ls -al cmd/zbctl/dist
       - name: Create Github release
         uses: ncipollo/release-action@v1
         with:
