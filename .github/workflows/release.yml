@@ -1,0 +1,48 @@
+name: Release Go Client
+on: 
+  push:
+    branches:
+      - 'release/**'
+jobs:
+  release:
+    runs-on: ubuntu-latest    
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get Release version
+        shell: bash
+        run: |
+          RELEASE_VERSION=$(echo $GITHUB_REF | egrep -o "[0-9]\.[0-9]\.[0-9]{1,2}")
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Set and commit Go Client version
+        run: |
+          pushd clients/go/internal/embedded
+          echo "${RELEASE_VERSION}" > data/VERSION
+          git commit -am "build(project): update go embedded version data"
+      - name: Build Go Client
+        shell: bash
+        id: build-go
+        working-directory: cmd/zbctl
+        run: ./build.sh
+      - name: Run Go Client tests
+        working-directory: .
+        run: go test -mod=vendor -v ./...
+      - name: Go Post-Release
+        run: |
+          # Publish Go tag for the release
+          git tag "v${RELEASE_VERSION}"
+          if [ "$PUSH_CHANGES" = "true" ]; then
+            git push origin "v${RELEASE_VERSION}"
+          fi
+      - name: Create Github release
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ env.RELEASE_VERSION }}
+          artifacts: "cmd/zbctl/dist/*"
+          artifactErrorsFailBuild: true
+          generateReleaseNotes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: v${{ env.RELEASE_VERSION }}
