@@ -45,7 +45,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           name: ${{ env.RELEASE_VERSION }}
-          artifacts: "cmd/zbctl/dist/*"
+          artifacts: "cmd/zbctl/dist/zbctl,cmd/zbctl/dist/zbctl.exe,cmd/zbctl/dist/zbctl.darwin"
           artifactErrorsFailBuild: true
           generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
