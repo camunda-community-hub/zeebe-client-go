@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/stretchr/testify/suite"
@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 )
 
 type clientTestSuite struct {

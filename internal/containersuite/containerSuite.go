@@ -22,9 +22,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/zbc"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
 	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"

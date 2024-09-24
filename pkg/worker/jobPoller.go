@@ -23,8 +23,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

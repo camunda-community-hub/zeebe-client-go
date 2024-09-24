@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"errors"
-	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
 	"github.com/spf13/cobra"
 )
 

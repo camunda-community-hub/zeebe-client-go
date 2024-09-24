@@ -19,8 +19,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/camunda-community-hub/zeebe-client-go/internal/utils"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 )
 
 type DispatchSetVariablesCommand interface {

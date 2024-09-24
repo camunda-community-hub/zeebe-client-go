@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/commands"
 )
 
 type jobStreamer struct {

@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/context"

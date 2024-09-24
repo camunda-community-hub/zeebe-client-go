@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/internal/embedded"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/embedded"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"google.golang.org/grpc/credentials"
@@ -32,9 +32,9 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
 )
 
 const DefaultKeepAlive = 45 * time.Second

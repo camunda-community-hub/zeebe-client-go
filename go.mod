@@ -1,4 +1,4 @@
-module github.com/camunda-community-hub/zeebe-client-go
+module github.com/camunda-community-hub/zeebe-client-go/v8
 
 go 1.21
 

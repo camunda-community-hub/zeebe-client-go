@@ -17,8 +17,8 @@ package commands
 import (
 	"context"
 	"fmt"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/commands"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/commands"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 	"github.com/spf13/cobra"
 	"time"
 )

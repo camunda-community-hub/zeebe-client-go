@@ -20,8 +20,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 )
 
 const (
