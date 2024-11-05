@@ -33,7 +33,7 @@ type ContainerRequestHook func(ctx context.Context, req ContainerRequest) error
 // - Terminating
 // - Terminated
 // For that, it will receive a Container, modify it and return an error if needed.
-type ContainerHook func(ctx context.Context, container Container) error
+type ContainerHook func(ctx context.Context, ctr Container) error
 
 // ContainerLifecycleHooks is a struct that contains all the hooks that can be used
 // to modify the container lifecycle. All the container lifecycle hooks except the PreCreates hooks
@@ -190,7 +190,6 @@ var defaultLogConsumersHook = func(cfg *LogConsumerConfig) ContainerLifecycleHoo
 				}
 
 				dockerContainer := c.(*DockerContainer)
-
 				return dockerContainer.stopLogProduction()
 			},
 		},
@@ -411,10 +410,10 @@ func (c ContainerLifecycleHooks) Creating(ctx context.Context) func(req Containe
 // containerHookFn is a helper function that will create a function to be returned by all the different
 // container lifecycle hooks. The created function will iterate over all the hooks and call them one by one.
 func containerHookFn(ctx context.Context, containerHook []ContainerHook) func(container Container) error {
-	return func(container Container) error {
+	return func(ctr Container) error {
 		errs := make([]error, len(containerHook))
 		for i, hook := range containerHook {
-			errs[i] = hook(ctx, container)
+			errs[i] = hook(ctx, ctr)
 		}
 
 		return errors.Join(errs...)
