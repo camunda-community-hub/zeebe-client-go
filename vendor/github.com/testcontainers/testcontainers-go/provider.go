@@ -25,7 +25,7 @@ type (
 	// GenericProviderOptions defines options applicable to all providers
 	GenericProviderOptions struct {
 		Logger         Logging
-		DefaultNetwork string
+		defaultNetwork string
 	}
 
 	// GenericProviderOption defines a common interface to modify GenericProviderOptions
@@ -147,7 +147,7 @@ func NewDockerProvider(provOpts ...DockerProviderOption) (*DockerProvider, error
 
 	return &DockerProvider{
 		DockerProviderOptions: o,
-		host:                  core.ExtractDockerHost(ctx),
+		host:                  core.MustExtractDockerHost(ctx),
 		client:                c,
 		config:                config.Read(),
 	}, nil

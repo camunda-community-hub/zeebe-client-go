@@ -3,6 +3,7 @@ package testcontainers
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"time"
 
 	"dario.cat/mergo"
@@ -155,7 +156,12 @@ func (c CustomHubSubstitutor) Substitute(image string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("%s/%s", c.hub, image), nil
+	result, err := url.JoinPath(c.hub, image)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 // prependHubRegistry represents a way to prepend a custom Hub registry to the image name,
@@ -180,7 +186,7 @@ func (p prependHubRegistry) Description() string {
 //   - if the prefix is empty, the image is returned as is.
 //   - if the image is a non-hub image (e.g. where another registry is set), the image is returned as is.
 //   - if the image is a Docker Hub image where the hub registry is explicitly part of the name
-//     (i.e. anything with a docker.io or registry.hub.docker.com host part), the image is returned as is.
+//     (i.e. anything with a registry.hub.docker.com host part), the image is returned as is.
 func (p prependHubRegistry) Substitute(image string) (string, error) {
 	registry := core.ExtractRegistry(image, "")
 
@@ -198,7 +204,12 @@ func (p prependHubRegistry) Substitute(image string) (string, error) {
 		}
 	}
 
-	return fmt.Sprintf("%s/%s", p.prefix, image), nil
+	result, err := url.JoinPath(p.prefix, image)
+	if err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 // WithImageSubstitutors sets the image substitutors for a container
