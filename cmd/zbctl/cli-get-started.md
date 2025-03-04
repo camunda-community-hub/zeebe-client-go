@@ -92,7 +92,7 @@ Use the following conditional expression for the **else** sequence flow:
 
 ## Deploy a process
 
-Now, you can deploy the [process](https://docs.camunda.io/docs/bpmn/apis-tools/gettingstarted_quickstart_advanced.bpmn). Navigate to the folder where you saved your process.
+Now, you can deploy the [process](https://docs.camunda.io/assets/files/gettingstarted_quickstart_advanced-3786a5f1c2a32871b2cc0580bb44266f.bpmn). Navigate to the folder where you saved your process.
 
 ```bash
 zbctl deploy resource gettingstarted_quickstart_advanced.bpmn
