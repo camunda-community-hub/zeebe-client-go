@@ -1,22 +1,16 @@
----
-id: cli-get-started
-title: Getting started with the CLI client
-sidebar_label: "Getting started with the CLI client"
-description: "Get started with this tutorial that shows you how to interact with Camunda 8 using the community-supported CLI client and command line interface `zbctl`."
----
 
-In this tutorial, you will learn how to use the [community-supported](https://github.com/camunda-community-hub) `zbctl` CLI client to interact with Camunda 8.
+In this tutorial, you will learn how to use the `zbctl` CLI client to interact with Camunda 8.
 
 :::note
-The CLI client doesn't support [multi-tenancy](/self-managed/concepts/multi-tenancy.md) and can only be used when multi-tenancy is disabled.
+The CLI client doesn't support [multi-tenancy](https://docs.camunda.io/docs/self-managed/concepts/multi-tenancy/) and can only be used when multi-tenancy is disabled.
 :::
 
 ## Prerequisites
 
-- [Camunda 8 account](/guides/create-account.md)
-- [Cluster](/guides/create-cluster.md)
-- [Client credentials](/guides/setup-client-connection-credentials.md)
-- [Modeler](/guides/model-your-first-process.md)
+- [Camunda 8 account](https://docs.camunda.io/docs/guides/create-account.md)
+- [Cluster](https://docs.camunda.io/docs/guides/create-cluster.md)
+- [Client credentials](https://docs.camunda.io/docs/guides/setup-client-connection-credentials.md)
+- [Modeler](https://docs.camunda.io/docs/guides/model-your-first-process.md)
 - [NPM environment](https://www.npmjs.com/)
 
 ## Set up
