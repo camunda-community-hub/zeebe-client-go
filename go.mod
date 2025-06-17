@@ -1,6 +1,8 @@
 module github.com/camunda-community-hub/zeebe-client-go/v8
 
-go 1.21
+go 1.23.0
+
+toolchain go1.24.4
 
 require (
 	github.com/docker/go-connections v0.5.0
@@ -13,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/testcontainers/testcontainers-go v0.33.0
 	golang.org/x/net v0.29.0
-	golang.org/x/oauth2 v0.23.0
+	golang.org/x/oauth2 v0.30.0
 	google.golang.org/grpc v1.67.0
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
