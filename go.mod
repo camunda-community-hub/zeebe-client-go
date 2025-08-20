@@ -1,6 +1,6 @@
 module github.com/camunda-community-hub/zeebe-client-go/v8
 
-go 1.21
+go 1.23
 
 require (
 	github.com/docker/go-connections v0.5.0
@@ -15,7 +15,7 @@ require (
 	golang.org/x/net v0.29.0
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/grpc v1.67.0
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.36.8
 	gopkg.in/yaml.v3 v3.0.1
 )
 
