@@ -6,13 +6,17 @@ After installation, a connection can be tested immediately.
 
 ## Installation
 
-Quickly install via the package manager `npm`. The corresponding package is [here](https://www.npmjs.com/package/zbctl).
+Quickly install via the package manager `npm`. The corresponding package is [here](https://www.npmjs.com/package/zbctl) ([source](https://github.com/camunda-community-hub/zbctl-via-npm)).
 
 ```bash
 npm i -g zbctl
 ```
 
 You can also download a binary for your operating system from the [Zeebe Go Client GitHub releases page](https://github.com/camunda-community-hub/zeebe-client-go/releases).
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/zbctl.svg)](https://repology.org/project/zbctl/versions)
+
+Snap: [![zbctl](https://snapcraft.io/zbctl/badge.svg)](https://snapcraft.io/zbctl) ([source](https://github.com/camunda-community-hub/zbctl-snap))
 
 ## Connection settings
 
