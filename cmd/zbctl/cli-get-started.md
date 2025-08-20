@@ -23,7 +23,7 @@ Quickly install via the package manager `npm`. The corresponding package is [her
 npm i -g zbctl
 ```
 
-You can also download a binary for your operating system from the [Zeebe GitHub releases page](https://github.com/camunda/camunda/releases).
+[Other installation options for `zbctl`](zbctl.md#installation)
 
 ### Connection settings
 
