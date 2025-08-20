@@ -4,6 +4,8 @@ You can use the [community-supported](https://github.com/camunda-community-hub) 
 
 After installation, a connection can be tested immediately.
 
+[zbctl Getting Started Guide](cli-get-started.md)
+
 ## Installation
 
 Quickly install via the package manager `npm`. The corresponding package is [here](https://www.npmjs.com/package/zbctl) ([source](https://github.com/camunda-community-hub/zbctl-via-npm)).
@@ -12,7 +14,9 @@ Quickly install via the package manager `npm`. The corresponding package is [her
 npm i -g zbctl
 ```
 
-You can also download a binary for your operating system from the [Zeebe Go Client GitHub releases page](https://github.com/camunda-community-hub/zeebe-client-go/releases).
+You can also download a binary for your operating system from the [Zeebe Go Client GitHub releases page](https://github.com/camunda-community-hub/zeebe-client-go/releases) or from one of the following package sources:
+
+[![npm version](https://badge.fury.io/js/zbctl.svg)](https://badge.fury.io/js/zbctl)
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/zbctl.svg)](https://repology.org/project/zbctl/versions)
 
