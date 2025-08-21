@@ -20,7 +20,9 @@ You can also download a binary for your operating system from the [Zeebe Go Clie
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/zbctl.svg)](https://repology.org/project/zbctl/versions)
 
-Snap: [![zbctl](https://snapcraft.io/zbctl/badge.svg)](https://snapcraft.io/zbctl) ([source](https://github.com/camunda-community-hub/zbctl-snap))
+[![zbctl](https://snapcraft.io/zbctl/badge.svg)](https://snapcraft.io/zbctl)
+
+[zbctl snap package](https://snapcraft.io/zbctl) including support for `amd64`, `arm64`, `armhf`, `ppc64el`, and `s390x` architectures ([source](https://github.com/camunda-community-hub/zbctl-snap))
 
 ## Connection settings
 
