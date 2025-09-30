@@ -28,7 +28,11 @@ You can also download a binary for your operating system from the [Zeebe Go Clie
 
 [zbctl Docker image including Arm support](https://hub.docker.com/r/upgradingdave/zbctl)
 
-[zbctl Java port based on Zeebe Java Client](https://github.com/upgradingdave/camunda-deep-dives/tree/main/zbctl-java)
+[`zbctl-java` Java port based on Zeebe Java Client](https://github.com/upgradingdave/camunda-deep-dives/tree/main/zbctl-java)
+
+[`zbctl-java` Docker image](https://hub.docker.com/r/upgradingdave/zbctl-java/tags)
+
+[Usage examples for Kubernetes Jobs](https://github.com/search?q=repo%3Acamunda-community-hub%2Fcamunda-8-helm-profiles%20zbctl&type=code)
 
 ## Connection settings
 
