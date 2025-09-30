@@ -26,6 +26,8 @@ You can also download a binary for your operating system from the [Zeebe Go Clie
 
 [zbctl Docker image based on NPM package](https://hub.docker.com/r/sitapati/zbctl)
 
+[zbctl Docker image including Arm support](https://hub.docker.com/r/upgradingdave/zbctl)
+
 [zbctl Java port based on Zeebe Java Client](https://github.com/upgradingdave/camunda-deep-dives/tree/main/zbctl-java)
 
 ## Connection settings
