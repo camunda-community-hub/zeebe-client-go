@@ -1,12 +1,12 @@
 module github.com/camunda-community-hub/zeebe-client-go/v8
 
-go 1.21
+go 1.23
 
 require (
 	github.com/docker/go-connections v0.5.0
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/golang/mock v1.6.0
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.8.1
@@ -15,7 +15,7 @@ require (
 	golang.org/x/net v0.29.0
 	golang.org/x/oauth2 v0.23.0
 	google.golang.org/grpc v1.67.0
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.36.10
 	gopkg.in/yaml.v3 v3.0.1
 )
 
