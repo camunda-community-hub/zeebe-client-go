@@ -24,6 +24,8 @@ You can also download a binary for your operating system from the [Zeebe Go Clie
 
 [zbctl Snap package](https://snapcraft.io/zbctl) including support for `amd64`, `arm64`, `armhf`, `ppc64el`, and `s390x` architectures ([source](https://github.com/camunda-community-hub/zbctl-snap))
 
+[zbctl asdf plugin](https://github.com/camunda-community-hub/asdf-zbctl) for the [asdf version manager](https://asdf-vm.com).
+
 [zbctl Docker image based on NPM package](https://hub.docker.com/r/sitapati/zbctl)
 
 [zbctl Docker image including Arm support](https://hub.docker.com/r/upgradingdave/zbctl)
