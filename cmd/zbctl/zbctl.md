@@ -6,6 +6,8 @@ After installation, a connection can be tested immediately.
 
 [zbctl Getting Started Guide](cli-get-started.md)
 
+Join the [discussion about Camunda CLI a successor to `zbtl` based on the Camunda Java Client](https://github.com/camunda/camunda/issues/27751).
+
 ## Installation
 
 Quickly install via the package manager `npm`. The corresponding package is [here](https://www.npmjs.com/package/zbctl) ([source](https://github.com/camunda-community-hub/zbctl-via-npm)).
