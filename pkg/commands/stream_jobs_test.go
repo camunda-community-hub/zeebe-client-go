@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/mock_pb"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/internal/mock_pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/pb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )

@@ -56,7 +56,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
+    "github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
 )
 
 func main() {
@@ -115,7 +115,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
+    "github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
     "os"
 )
 

@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/containersuite"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/internal/containersuite"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/suite"
 )

@@ -18,7 +18,7 @@ package commands
 import (
 	"context"
 
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/pb"
 )
 
 type TopologyCommand struct {

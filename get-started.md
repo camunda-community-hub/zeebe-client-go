@@ -13,7 +13,7 @@ The Go client doesn't support [multi-tenancy](https://docs.camunda.io/docs/self-
 - [Camunda 8 account](https://docs.camunda.io/docs/guides/create-account.md)
 - [Cluster](https://docs.camunda.io/docs/guides/create-cluster.md)
 - [Client credentials](https://docs.camunda.io/docs/guides/setup-client-connection-credentials.md)
-- [Go v1.21+ environment installed](https://go.dev/)
+- [Go v1.26+ environment installed](https://go.dev/)
 
 ## Set up a project
 
@@ -30,7 +30,7 @@ go mod init zb-user/zb-example
 2. To use the Zeebe Go client library, run the following:
 
 ```bash
-go get github.com/camunda-community-hub/zeebe-client-go/v8@v8.6.0
+go get github.com/camunda-community-hub/zeebe-client-go/v9@v9.0.0
 ```
 
 This adds the following dependency to your `go.mod`, it should look similar to this:
@@ -38,9 +38,9 @@ This adds the following dependency to your `go.mod`, it should look similar to t
 ```go
 module github.com/zb-user/zb-example
 
-go 1.21
+go 1.26.0
 
-require github.com/camunda-community-hub/zeebe-client-go/v8 v8.6.0
+require github.com/camunda-community-hub/zeebe-client-go/v9 v9.0.0
 ```
 
 3. Set the connection settings and client credentials as environment variables in your terminal:
@@ -64,8 +64,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/pb"
 	"os"
 )
 
@@ -266,9 +266,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
 	"log"
 	"os"
 )
@@ -380,9 +380,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
-	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/worker"
+	"github.com/camunda-community-hub/zeebe-client-go/v9/pkg/zbc"
 	"log"
 	"os"
 )

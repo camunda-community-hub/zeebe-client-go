@@ -1,6 +1,6 @@
-module github.com/camunda-community-hub/zeebe-client-go/v8
+module github.com/camunda-community-hub/zeebe-client-go/v9
 
-go 1.21
+go 1.26
 
 require (
 	github.com/docker/go-connections v0.5.0

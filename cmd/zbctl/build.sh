@@ -15,7 +15,7 @@ rm -rf ${DIST_DIR}/*
 
 for i in "${!OS[@]}"; do
 	if [ $# -eq 0 ] || [ ${OS[$i]} = $1 ]; then
-	    CGO_ENABLED=0 GOOS="${OS[$i]}" GOARCH="${ARCH[$i]}" go build -a -tags netgo -ldflags "-w -X github.com/camunda-community-hub/zeebe-client-go/v8/cmd/zbctl/internal/commands.Version=${VERSION} -X github.com/camunda-community-hub/zeebe-client-go/v8/cmd/zbctl/internal/commands.Commit=${COMMIT}" -o "${DIST_DIR}/${BINARY[$i]}" "${SRC_DIR}/main.go" &
+	    CGO_ENABLED=0 GOOS="${OS[$i]}" GOARCH="${ARCH[$i]}" go build -a -tags netgo -ldflags "-w -X github.com/camunda-community-hub/zeebe-client-go/v9/cmd/zbctl/internal/commands.Version=${VERSION} -X github.com/camunda-community-hub/zeebe-client-go/v9/cmd/zbctl/internal/commands.Commit=${COMMIT}" -o "${DIST_DIR}/${BINARY[$i]}" "${SRC_DIR}/main.go" &
 	fi
 done
 
