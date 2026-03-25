@@ -243,11 +243,15 @@ func applyCredentialDefaults(config *OAuthProviderConfig) {
 	}
 
 	if config.Cache == nil {
-		cache, err := NewOAuthYamlCredentialsCache("")
-		if err != nil {
-			log.Printf("Failed to create OAuth YAML token cache with default path: %s", err.Error())
+		if env.get(OAuthCacheDiskDisableEnvVar) != "" {
+			config.Cache = NewOAuthInMemoryCredentialsCache()
 		} else {
-			config.Cache = cache
+			cache, err := NewOAuthYamlCredentialsCache("")
+			if err != nil {
+				log.Printf("Failed to create OAuth YAML token cache with default path: %s", err.Error())
+			} else {
+				config.Cache = cache
+			}
 		}
 	}
 
