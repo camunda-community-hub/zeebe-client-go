@@ -27,7 +27,7 @@ import (
 )
 
 const OAuthCachePathEnvVar = "ZEEBE_CLIENT_CONFIG_PATH"
-const OAuthCacheDiskDisableEnvVar = "CAMUNDA_TOKEN_DISK_CACHE_DISABLE"
+const OAuthCacheDiskDisableEnvVar = "ZEEBE_CLIENT_DISK_CACHE_DISABLE"
 const DefaultOAuthCacheFileDir = ".camunda"
 const DefaultOAuthCacheFile = "credentials"
 const oauthYamlCredentialsCachePerm = 0660
@@ -200,7 +200,7 @@ func ensureOAuthCachePathSegmentsExist(directory string) error {
 }
 
 // oauthInMemoryCredentialsCache implements OAuthCredentialsCache without any filesystem access,
-// suitable for read-only containers. Activate by setting CAMUNDA_TOKEN_DISK_CACHE_DISABLE.
+// suitable for read-only containers. Activate by setting ZEEBE_CLIENT_DISK_CACHE_DISABLE.
 type oauthInMemoryCredentialsCache struct {
 	audiences map[string]*oauth2.Token
 	lock      sync.RWMutex

@@ -110,7 +110,7 @@ When you create client credentials in Camunda 8, you have the option to download
 If you are running in a read-only filesystem (e.g. a container with `readOnlyRootFilesystem: true`), you can disable the disk-based token cache by setting:
 
 ```bash
-export CAMUNDA_TOKEN_DISK_CACHE_DISABLE=true
+export ZEEBE_CLIENT_DISK_CACHE_DISABLE=true
 ```
 
 This will use an in-memory credentials cache instead of writing to `~/.camunda/credentials`. Note that tokens will not survive process restarts when using this option.
