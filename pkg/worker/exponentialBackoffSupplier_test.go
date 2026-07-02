@@ -17,6 +17,7 @@ package worker
 import (
 	"github.com/stretchr/testify/assert"
 	"math"
+	"sync"
 	"testing"
 	"time"
 )
@@ -113,4 +114,25 @@ func TestExponentialBackoffSupplier_ShouldBeRandomizedWithJitter(t *testing.T) {
 		// then - as we used 0 for jitter factor, we can guarantee all are sorted
 		assert.IsIncreasing(t, delay, retryDelays[i-1], "backoff is strictly increasing")
 	}
+}
+
+func TestExponentialBackoffSupplier_IsSafeForConcurrentUse(t *testing.T) {
+	// A single supplier is shared by every job poller, so SupplyRetryDelay must
+	// be safe to call from multiple goroutines. Run under -race to catch the
+	// unsynchronized *rand.Rand access.
+	e := NewExponentialBackoffBuilder().
+		JitterFactor(0.1).
+		Build()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 200; j++ {
+				e.SupplyRetryDelay(time.Millisecond * 50)
+			}
+		}()
+	}
+	wg.Wait()
 }
