@@ -17,6 +17,7 @@ package worker
 import (
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,7 @@ func NewExponentialBackoffBuilder() ExponentialBackoff {
 		backoffFactor: 1.6,
 		jitterFactor:  0.1,
 		random:        rand.New(rand.NewSource(time.Now().Unix())), //nolint G404, we dont need a secure random number generator
+		randomMu:      &sync.Mutex{},
 	}
 }
 
@@ -71,6 +73,7 @@ func (e ExponentialBackoff) Build() BackoffSupplier {
 		backoffFactor: e.backoffFactor,
 		jitterFactor:  e.jitterFactor,
 		random:        e.random,
+		randomMu:      e.randomMu,
 	}
 }
 
@@ -78,6 +81,9 @@ type ExponentialBackoff struct {
 	minDelay, maxDelay          time.Duration
 	backoffFactor, jitterFactor float64
 	random                      *rand.Rand
+	// randomMu guards random, which is a shared *rand.Rand and is not safe for
+	// concurrent use. Multiple job pollers may back off at the same time.
+	randomMu *sync.Mutex
 }
 
 func (e ExponentialBackoff) SupplyRetryDelay(currentRetryDelay time.Duration) time.Duration {
@@ -92,5 +98,16 @@ func (e ExponentialBackoff) computeJitter(value float64) float64 {
 	minFactor := value * -e.jitterFactor
 	maxFactor := value * e.jitterFactor
 
-	return (e.random.Float64() * (maxFactor - minFactor)) + minFactor
+	return (e.float64() * (maxFactor - minFactor)) + minFactor
+}
+
+// float64 returns a random float in [0.0, 1.0), guarding the shared *rand.Rand
+// so concurrent pollers do not corrupt its internal state.
+func (e ExponentialBackoff) float64() float64 {
+	if e.randomMu == nil {
+		return e.random.Float64()
+	}
+	e.randomMu.Lock()
+	defer e.randomMu.Unlock()
+	return e.random.Float64()
 }
