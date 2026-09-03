@@ -46,7 +46,6 @@ func Min(min interface{}) ThresholdRule {
 		operator:  greaterEqualThan,
 		err:       ErrMinGreaterEqualThanRequired,
 	}
-
 }
 
 // Max returns a validation rule that checks if a value is less or equal than the specified value.
@@ -64,10 +63,11 @@ func Max(max interface{}) ThresholdRule {
 
 // Exclusive sets the comparison to exclude the boundary value.
 func (r ThresholdRule) Exclusive() ThresholdRule {
-	if r.operator == greaterEqualThan {
+	switch r.operator {
+	case greaterEqualThan:
 		r.operator = greaterThan
 		r.err = ErrMinGreaterThanRequired
-	} else if r.operator == lessEqualThan {
+	case lessEqualThan:
 		r.operator = lessThan
 		r.err = ErrMaxLessThanRequired
 	}
@@ -77,7 +77,7 @@ func (r ThresholdRule) Exclusive() ThresholdRule {
 // Validate checks if the given value is valid or not.
 func (r ThresholdRule) Validate(value interface{}) error {
 	value, isNil := Indirect(value)
-	if isNil || IsEmpty(value) {
+	if isNil {
 		return nil
 	}
 
@@ -119,7 +119,7 @@ func (r ThresholdRule) Validate(value interface{}) error {
 		if !ok {
 			return fmt.Errorf("cannot convert %v to time.Time", reflect.TypeOf(value))
 		}
-		if v.IsZero() || r.compareTime(t, v) {
+		if r.compareTime(t, v) {
 			return nil
 		}
 
