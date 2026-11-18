@@ -29,6 +29,7 @@ import (
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -339,4 +340,126 @@ func TestJobWorkerClose(t *testing.T) {
 		assert.Fail(t, "Failed to close worker after 10 seconds")
 		break
 	}
+}
+
+func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	stream := mock_pb.NewMockGateway_StreamActivatedJobsClient(ctrl)
+	timeout := 7 * time.Minute
+
+	streamRequest := &pb.StreamActivatedJobsRequest{
+		Type:      "foo",
+		Timeout:   int64(timeout / time.Millisecond),
+		Worker:    "fooWorker",
+		TenantIds: []string{commands.DefaultJobTenantID},
+	}
+	activateJobsRequest := func(maxJobsToActivate int32) *pb.ActivateJobsRequest {
+		return &pb.ActivateJobsRequest{
+			Type:              "foo",
+			MaxJobsToActivate: maxJobsToActivate,
+			Timeout:           int64(timeout / time.Millisecond),
+			Worker:            "fooWorker",
+			RequestTimeout:    int64(utils.DefaultTestTimeout / time.Millisecond),
+			TenantIds:         []string{commands.DefaultJobTenantID},
+		}
+	}
+
+	// the streaming RPC stays open for the whole test without delivering jobs
+	stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivatedJob, error) {
+		select {}
+	}).AnyTimes()
+	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().Return(stream, nil)
+
+	batch := func(keys ...int64) *mock_pb.MockGateway_ActivateJobsClient {
+		jobs := make([]*pb.ActivatedJob, len(keys))
+		for i, key := range keys {
+			jobs[i] = &pb.ActivatedJob{Key: key}
+		}
+		s := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+		gomock.InOrder(
+			s.EXPECT().Recv().Return(&pb.ActivateJobsResponse{Jobs: jobs}, nil),
+			s.EXPECT().Recv().Return(nil, io.EOF),
+		)
+		return s
+	}
+
+	secondPoll := make(chan struct{})
+	gomock.InOrder(
+		client.EXPECT().ActivateJobs(gomock.Any(), &rpcMsg{msg: activateJobsRequest(2)}).Return(batch(1, 2), nil),
+		client.EXPECT().ActivateJobs(gomock.Any(), &rpcMsg{msg: activateJobsRequest(2)}).DoAndReturn(
+			func(context.Context, *pb.ActivateJobsRequest, ...grpc.CallOption) (pb.Gateway_ActivateJobsClient, error) {
+				close(secondPoll)
+				return batch(3, 4), nil
+			}),
+	)
+
+	retryPred := func(ctx context.Context, err error) bool { return false }
+	activate := make(chan entities.Job)
+	release := make(chan struct{}, 4)
+	worker := NewJobWorkerBuilder(client, nil, retryPred).
+		JobType("foo").
+		Handler(func(client JobClient, job entities.Job) {
+			activate <- job
+			<-release
+		}).
+		MaxJobsActive(2).
+		Concurrency(2).
+		Timeout(timeout).
+		RequestTimeout(utils.DefaultTestTimeout).
+		Name("fooWorker").
+		StreamEnabled(true).
+		PollInterval(time.Hour).
+		PollThreshold(0.1).
+		Open()
+	defer func() {
+		closed := make(chan struct{})
+		go func() {
+			worker.Close()
+			close(closed)
+		}()
+		select {
+		case <-closed:
+		case <-time.After(utils.DefaultTestTimeout):
+			t.Error("Failed to close worker before timeout")
+		}
+	}()
+
+	// the full first batch is activated while the streaming RPC stays open
+	for i := 0; i < 2; i++ {
+		select {
+		case <-activate:
+		case <-time.After(utils.DefaultTestTimeout):
+			t.Fatal("Failed to activate first polled batch before timeout")
+		}
+	}
+
+	// completing only part of the batch must not poll again
+	release <- struct{}{}
+	select {
+	case <-secondPoll:
+		t.Fatal("Polled again before the full polled batch finished")
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	// finishing the last job of the batch resumes polling even though the stream stays open
+	release <- struct{}{}
+	select {
+	case <-secondPoll:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("Poller did not poll again after the polled batch finished with the stream open")
+	}
+
+	// drain the second batch so the worker can close
+	for i := 0; i < 2; i++ {
+		select {
+		case <-activate:
+		case <-time.After(utils.DefaultTestTimeout):
+			t.Fatal("Failed to activate second polled batch before timeout")
+		}
+	}
+	release <- struct{}{}
+	release <- struct{}{}
 }
