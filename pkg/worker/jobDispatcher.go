@@ -24,6 +24,8 @@ type jobDispatcher struct {
 	jobQueue       chan entities.Job
 	workerFinished chan bool
 	closeSignal    chan struct{}
+	// polled, if set, limits finish signals to jobs the poller activated. Nil signals every job.
+	polled *polledJobs
 }
 
 func (dispatcher *jobDispatcher) run(client JobClient, handler JobHandler, concurrency int, closeWait *sync.WaitGroup) {
@@ -52,7 +54,9 @@ func (dispatcher *jobDispatcher) run(client JobClient, handler JobHandler, concu
 				select {
 				case job := <-work:
 					handler(client, job)
-					dispatcher.workerFinished <- true
+					if dispatcher.polled == nil || dispatcher.polled.remove(job.GetKey()) {
+						dispatcher.workerFinished <- true
+					}
 				case <-closeWorkers:
 					break workerLoop
 				}

@@ -67,8 +67,9 @@ func (streamer *jobStreamer) stream(closeWait *sync.WaitGroup) {
 				streamClosed = make(chan error, 1)
 				go streamer.openStream(streamCtx, streamClosed)
 			}
-		// TODO: increment job handled worker metric
-		case <-streamer.workerFinished:
+		// The streamer does not read workerFinished: those signals belong to the poller, and
+		// consuming them here left the poller's remaining count stuck above its threshold, so it
+		// stopped polling and never drained jobs that existed before the stream opened.
 		// streamer was closed, most likely the worker is closing too
 		case <-streamer.closeSignal:
 			streamer.close()

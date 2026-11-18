@@ -40,10 +40,12 @@ type jobPoller struct {
 	jobQueue       chan entities.Job
 	workerFinished chan bool
 	closeSignal    chan struct{}
-	remaining      int
-	threshold      int
-	metrics        JobWorkerMetrics
-	shouldRetry    func(context.Context, error) bool
+	// polled, if set, records activated job keys so only polled jobs signal workerFinished.
+	polled      *polledJobs
+	remaining   int
+	threshold   int
+	metrics     JobWorkerMetrics
+	shouldRetry func(context.Context, error) bool
 
 	backoffSupplier BackoffSupplier
 }
@@ -123,6 +125,9 @@ func (poller *jobPoller) activateJobs() {
 		poller.remaining += len(response.Jobs)
 		poller.setJobsRemainingCountMetric(poller.remaining)
 		for _, job := range response.Jobs {
+			if poller.polled != nil {
+				poller.polled.add(job.GetKey())
+			}
 			poller.jobQueue <- entities.Job{ActivatedJob: job}
 		}
 	}
