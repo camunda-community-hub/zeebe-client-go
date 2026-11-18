@@ -473,7 +473,7 @@ func buildZbctl() ([]byte, error) {
 	case "linux":
 		zbctl = "zbctl"
 	case "darwin":
-		zbctl = "zbctl.darwin"
+		zbctl = "zbctl.darwin-" + runtime.GOARCH
 	default:
 		return nil, fmt.Errorf("can't run zbctl tests on unsupported OS '%s'", runtime.GOOS)
 	}
