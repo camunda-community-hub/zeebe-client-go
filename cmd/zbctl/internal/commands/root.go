@@ -99,7 +99,7 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	var err error
 	var credsProvider zbc.CredentialsProvider
 
-	host, port, err := parseAddress()
+	address, host, err := gatewayAddress()
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	}
 
 	client, err = zbc.NewClient(&zbc.ClientConfig{
-		GatewayAddress:      fmt.Sprintf("%s:%s", host, port),
+		GatewayAddress:      address,
 		CredentialsProvider: credsProvider,
 		UserAgent:           "zeebe-client-zbctl/" + Version,
 	})
@@ -182,6 +182,16 @@ func shouldOverwriteEnvVar(cliParam, envVar string) bool {
 	cliParameterSet := rootCmd.Flags().Changed(cliParam)
 	_, exists := os.LookupEnv(envVar)
 	return cliParameterSet || !exists
+}
+
+// gatewayAddress returns the gateway address to dial and its host part. The address is
+// joined with net.JoinHostPort so IPv6 hosts keep their brackets.
+func gatewayAddress() (address string, host string, err error) {
+	host, port, err := parseAddress()
+	if err != nil {
+		return "", "", err
+	}
+	return net.JoinHostPort(host, port), host, nil
 }
 
 func parseAddress() (host string, port string, err error) {

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -218,12 +219,12 @@ func applyClientEnvOverrides(config *ClientConfig) error {
 
 	if gatewayHost := env.get(GatewayHostEnvVar); gatewayHost != "" {
 		if gatewayPort := env.get(GatewayPortEnvVar); gatewayPort != "" {
-			config.GatewayAddress = fmt.Sprintf("%s:%s", gatewayHost, gatewayPort)
+			config.GatewayAddress = net.JoinHostPort(gatewayHost, gatewayPort)
 		} else {
-			config.GatewayAddress = fmt.Sprintf("%s:%s", gatewayHost, DefaultAddressPort)
+			config.GatewayAddress = net.JoinHostPort(gatewayHost, DefaultAddressPort)
 		}
 	} else if gatewayPort := env.get(GatewayPortEnvVar); gatewayPort != "" {
-		config.GatewayAddress = fmt.Sprintf("%s:%s", DefaultAddressHost, gatewayPort)
+		config.GatewayAddress = net.JoinHostPort(DefaultAddressHost, gatewayPort)
 	} else if gatewayAddress := env.get(GatewayAddressEnvVar); gatewayAddress != "" {
 		config.GatewayAddress = gatewayAddress
 	}

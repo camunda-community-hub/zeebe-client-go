@@ -547,6 +547,23 @@ func (s *clientTestSuite) TestOverrideHostAndPortEnvVar() {
 	s.EqualValues(fmt.Sprintf("%s:%s", address, port), config.GatewayAddress)
 }
 
+func (s *clientTestSuite) TestOverrideIPv6HostEnvVar() {
+	// given
+	env.set(GatewayHostEnvVar, "::1")
+	env.set(GatewayPortEnvVar, "9090")
+	config := &ClientConfig{
+		GatewayAddress:         "wrong_address",
+		UsePlaintextConnection: true,
+	}
+
+	// when
+	_, err := NewClient(config)
+
+	// then
+	s.NoError(err)
+	s.EqualValues("[::1]:9090", config.GatewayAddress)
+}
+
 func createSecureServer(withSan bool) (net.Listener, *grpc.Server) {
 	certFile := "testdata/chain.cert.pem"
 	keyFile := "testdata/private.key.pem"
