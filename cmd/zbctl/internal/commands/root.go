@@ -74,6 +74,9 @@ It is designed for regular maintenance jobs such as:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		if hint := connectionHint(err, usesInsecureConnection()); hint != "" {
+			fmt.Fprintln(os.Stderr, hint)
+		}
 		os.Exit(1)
 	}
 }
