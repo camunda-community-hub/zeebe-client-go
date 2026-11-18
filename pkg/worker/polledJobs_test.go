@@ -141,30 +141,46 @@ func TestDispatcherSameKeyStreamedCompletionDoesNotSignalPoller(t *testing.T) {
 		closeSignal:    make(chan struct{}),
 		polled:         polled,
 	}
-	var handled sync.WaitGroup
-	handler := func(JobClient, entities.Job) { handled.Done() }
-
-	var closeWait sync.WaitGroup
-	closeWait.Add(1)
-	go dispatcher.run(&jobClientStub{}, handler, 2, &closeWait)
-
 	streamed := entities.Job{ActivatedJob: &pb.ActivatedJob{Key: 1}}
 	polledCopy := entities.Job{ActivatedJob: &pb.ActivatedJob{Key: 1}} // reactivated after timeout
 	polled.add(polledCopy.ActivatedJob)
 
-	handled.Add(2)
+	polledReached := make(chan struct{})
+	releasePolled := make(chan struct{})
+	handler := func(_ JobClient, job entities.Job) {
+		if job.ActivatedJob == polledCopy.ActivatedJob {
+			close(polledReached)
+			<-releasePolled
+		}
+	}
+
+	// a single worker processes jobs in order, so reaching the polled handler proves the
+	// streamed completion (and any signal it would emit) has already happened
+	var closeWait sync.WaitGroup
+	closeWait.Add(1)
+	go dispatcher.run(&jobClientStub{}, handler, 1, &closeWait)
+
 	dispatcher.jobQueue <- streamed
 	dispatcher.jobQueue <- polledCopy
-	handled.Wait()
-	// handled.Done runs inside the handler, before the dispatcher sends its signal
-	deadline := time.Now().Add(time.Second)
-	for len(dispatcher.workerFinished) < 1 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	select {
+	case <-polledReached:
+	case <-time.After(time.Second):
+		t.Fatal("polled handler was not reached")
+	}
+	if got := len(dispatcher.workerFinished); got != 0 {
+		t.Fatalf("streamed completion signalled the poller: got %d workerFinished signals before the polled job finished", got)
+	}
+
+	close(releasePolled)
+	select {
+	case <-dispatcher.workerFinished:
+	case <-time.After(time.Second):
+		t.Fatal("polled completion did not signal the poller")
 	}
 	close(dispatcher.closeSignal)
 	closeWait.Wait()
 
-	if got := len(dispatcher.workerFinished); got != 1 {
-		t.Fatalf("expected exactly 1 workerFinished signal (the polled activation only), got %d", got)
+	if got := len(dispatcher.workerFinished); got != 0 {
+		t.Fatalf("expected exactly 1 workerFinished signal, got %d extra", got)
 	}
 }

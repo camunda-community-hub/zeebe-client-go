@@ -40,7 +40,7 @@ type jobPoller struct {
 	jobQueue       chan entities.Job
 	workerFinished chan bool
 	closeSignal    chan struct{}
-	// polled, if set, records activated job keys so only polled jobs signal workerFinished.
+	// polled, if set, records each polled activation so only polled jobs signal workerFinished.
 	polled      *polledJobs
 	remaining   int
 	threshold   int

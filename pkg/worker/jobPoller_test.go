@@ -233,6 +233,62 @@ func (suite *JobPollerSuite) TestShouldReportMetrics() {
 	suite.completeJob()
 }
 
+// With streaming enabled, the poller tracks its activations so the dispatcher signals their
+// completion. Finishing a full polled batch must trigger another ActivateJobs request even though
+// the poller would otherwise wait for its (long) poll interval.
+func (suite *JobPollerSuite) TestShouldPollAgainAfterPolledBatchFinishesWithStreaming() {
+	// given
+	polled := newPolledJobs()
+	suite.poller.polled = polled
+	suite.poller.maxJobsActive = 2
+	suite.poller.threshold = 0
+	suite.poller.pollInterval = time.Hour
+	suite.poller.initialPollInterval = time.Hour
+	suite.poller.workerFinished = make(chan bool, 10)
+
+	batch := mock_pb.NewMockGateway_ActivateJobsClient(suite.ctrl)
+	gomock.InOrder(
+		batch.EXPECT().Recv().Return(&pb.ActivateJobsResponse{
+			Jobs: []*pb.ActivatedJob{{Key: 1}, {Key: 2}},
+		}, nil),
+		batch.EXPECT().Recv().Return(nil, io.EOF),
+	)
+	empty := mock_pb.NewMockGateway_ActivateJobsClient(suite.ctrl)
+	empty.EXPECT().Recv().Return(nil, io.EOF).AnyTimes()
+
+	repolled := make(chan struct{})
+	gomock.InOrder(
+		suite.client.EXPECT().ActivateJobs(gomock.Any(), &utils.RPCTestMsg{Msg: &pb.ActivateJobsRequest{
+			MaxJobsToActivate: 2,
+		}}).Return(batch, nil),
+		suite.client.EXPECT().ActivateJobs(gomock.Any(), &utils.RPCTestMsg{Msg: &pb.ActivateJobsRequest{
+			MaxJobsToActivate: 2,
+		}}).DoAndReturn(func(_ context.Context, _ *pb.ActivateJobsRequest, _ ...interface{}) (pb.Gateway_ActivateJobsClient, error) {
+			close(repolled)
+			return empty, nil
+		}),
+	)
+
+	dispatcher := jobDispatcher{
+		jobQueue:       suite.poller.jobQueue,
+		workerFinished: suite.poller.workerFinished,
+		closeSignal:    suite.poller.closeSignal,
+		polled:         polled,
+	}
+	suite.waitGroup.Add(1)
+	go dispatcher.run(&jobClientStub{}, func(JobClient, entities.Job) {}, 2, &suite.waitGroup)
+
+	// when
+	go suite.poller.poll(&suite.waitGroup)
+
+	// then finishing the polled batch makes the poller activate jobs again
+	select {
+	case <-repolled:
+	case <-time.After(utils.DefaultTestTimeout):
+		suite.FailNow("poller did not poll again after its polled batch finished")
+	}
+}
+
 func (suite *JobPollerSuite) singleJobStream() pb.Gateway_ActivateJobsClient {
 	stream := mock_pb.NewMockGateway_ActivateJobsClient(suite.ctrl)
 	gomock.InOrder(
