@@ -1,0 +1,62 @@
+// Copyright © 2018 Camunda Services GmbH (info@camunda.com)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package commands
+
+import (
+	"context"
+	"testing"
+
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/mock_pb"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+	"github.com/golang/mock/gomock"
+)
+
+func TestMigrateInstanceCommand(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+
+	request := &pb.MigrateProcessInstanceRequest{
+		ProcessInstanceKey: 123,
+		MigrationPlan: &pb.MigrateProcessInstanceRequest_MigrationPlan{
+			TargetProcessDefinitionKey: 456,
+			MappingInstructions: []*pb.MigrateProcessInstanceRequest_MappingInstruction{
+				{SourceElementId: "taskA", TargetElementId: "taskA2"},
+				{SourceElementId: "taskB", TargetElementId: "taskB2"},
+			},
+		},
+	}
+	stub := &pb.MigrateProcessInstanceResponse{}
+
+	client.EXPECT().MigrateProcessInstance(gomock.Any(), &utils.RPCTestMsg{Msg: request}).Return(stub, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), utils.DefaultTestTimeout)
+	defer cancel()
+
+	response, err := NewMigrateInstanceCommand(client, noRetry).
+		ProcessInstanceKey(123).
+		MigrationPlan(456).
+		AddMappingInstruction("taskA", "taskA2").
+		AddMappingInstruction("taskB", "taskB2").
+		Send(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response != stub {
+		t.Errorf("Failed to receive response")
+	}
+}

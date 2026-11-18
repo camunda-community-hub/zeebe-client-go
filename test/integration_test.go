@@ -26,6 +26,7 @@ import (
 	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/containersuite"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/entities"
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
 	"github.com/google/uuid"
@@ -561,6 +562,91 @@ func readBpmnWithCustomJobType(path string, jobType string) ([]byte, error) {
 	bpmn := strings.ReplaceAll(parsed, "<zeebe:taskDefinition type=\"task\" />", fmt.Sprintf("<zeebe:taskDefinition type=\"%s\" />", jobType))
 
 	return []byte(bpmn), nil
+}
+
+func (s *integrationTestSuite) TestModifyInstance() {
+	// given
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	deployment, err := s.client.NewDeployResourceCommand().AddResourceFile("testdata/modify_process.bpmn").Send(ctx)
+	s.Require().NoError(err)
+	process := deployment.GetDeployments()[0].GetProcess()
+
+	instance, err := s.client.NewCreateInstanceCommand().ProcessDefinitionKey(process.GetProcessDefinitionKey()).Send(ctx)
+	s.Require().NoError(err)
+	defer s.cancelInstance(instance.GetProcessInstanceKey())
+
+	jobs, err := s.client.NewActivateJobsCommand().JobType("modify-task").MaxJobsToActivate(1).Timeout(time.Minute).Send(ctx)
+	s.Require().NoError(err)
+	s.Require().Len(jobs, 1)
+	original := jobs[0]
+
+	// when: re-activate the task with a variable, and terminate the original instance of it
+	activate, err := s.client.NewModifyInstanceCommand().
+		ProcessInstanceKey(instance.GetProcessInstanceKey()).
+		ActivateElement("service_task").
+		VariablesFromMap(map[string]interface{}{"modified": true})
+	s.Require().NoError(err)
+	_, err = activate.TerminateElement(original.GetElementInstanceKey()).Send(ctx)
+	s.Require().NoError(err)
+
+	// then
+	jobs, err = s.client.NewActivateJobsCommand().JobType("modify-task").MaxJobsToActivate(1).Timeout(time.Minute).Send(ctx)
+	s.Require().NoError(err)
+	s.Require().Len(jobs, 1)
+	s.NotEqual(original.GetElementInstanceKey(), jobs[0].GetElementInstanceKey())
+	variables, err := jobs[0].GetVariablesAsMap()
+	s.Require().NoError(err)
+	s.Equal(true, variables["modified"])
+}
+
+func (s *integrationTestSuite) TestMigrateInstance() {
+	// given
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	deployment, err := s.client.NewDeployResourceCommand().
+		AddResourceFile("testdata/migrate_source.bpmn").
+		AddResourceFile("testdata/migrate_target.bpmn").
+		Send(ctx)
+	s.Require().NoError(err)
+	var source, target *pb.ProcessMetadata
+	for _, d := range deployment.GetDeployments() {
+		switch d.GetProcess().GetBpmnProcessId() {
+		case "migrate_source":
+			source = d.GetProcess()
+		case "migrate_target":
+			target = d.GetProcess()
+		}
+	}
+	s.Require().NotNil(source)
+	s.Require().NotNil(target)
+
+	instance, err := s.client.NewCreateInstanceCommand().ProcessDefinitionKey(source.GetProcessDefinitionKey()).Send(ctx)
+	s.Require().NoError(err)
+	defer s.cancelInstance(instance.GetProcessInstanceKey())
+
+	// when
+	_, err = s.client.NewMigrateInstanceCommand().
+		ProcessInstanceKey(instance.GetProcessInstanceKey()).
+		MigrationPlan(target.GetProcessDefinitionKey()).
+		AddMappingInstruction("task_a", "task_b").
+		Send(ctx)
+	s.Require().NoError(err)
+
+	// then
+	jobs, err := s.client.NewActivateJobsCommand().JobType("migrate-task").MaxJobsToActivate(1).Timeout(time.Minute).Send(ctx)
+	s.Require().NoError(err)
+	s.Require().Len(jobs, 1)
+	s.Equal(target.GetProcessDefinitionKey(), jobs[0].GetProcessDefinitionKey())
+	s.Equal("task_b", jobs[0].GetElementId())
+}
+
+func (s *integrationTestSuite) cancelInstance(processInstanceKey int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, _ = s.client.NewCancelInstanceCommand().ProcessInstanceKey(processInstanceKey).Send(ctx)
 }
 
 func (s *integrationTestSuite) TestUpdateJobTimeout() {

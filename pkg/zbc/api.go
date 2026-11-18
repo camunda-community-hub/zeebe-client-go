@@ -30,6 +30,8 @@ type Client interface {
 	NewCancelInstanceCommand() commands.CancelInstanceStep1
 	NewSetVariablesCommand() commands.SetVariablesCommandStep1
 	NewResolveIncidentCommand() commands.ResolveIncidentCommandStep1
+	NewModifyInstanceCommand() commands.ModifyInstanceCommandStep1
+	NewMigrateInstanceCommand() commands.MigrateInstanceCommandStep1
 
 	NewEvaluateDecisionCommand() commands.EvaluateDecisionCommandStep1
 
