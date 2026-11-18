@@ -101,18 +101,12 @@ func TestExponentialBackoffSupplier_ShouldBeRandomizedWithJitter(t *testing.T) {
 		retryDelays = append(retryDelays, e.SupplyRetryDelay(retryDelays[i]))
 	}
 
-	// then
-	for i, delay := range retryDelays {
+	// then - every delay is within the jitter bounds of the max delay (with jitter they
+	// are not ordered, so there is nothing to assert about their sequence)
+	for _, delay := range retryDelays {
 		// retryDelay is in bounds
 		betweenBounds := delay >= lowerMaxBoundDuration && delay <= upperMaxBoundDuration
 		assert.True(t, betweenBounds, "is between lower and upper bound")
-
-		// Skip first delay
-		if i == 0 {
-			continue
-		}
-		// then - as we used 0 for jitter factor, we can guarantee all are sorted
-		assert.IsIncreasing(t, delay, retryDelays[i-1], "backoff is strictly increasing")
 	}
 }
 

@@ -115,14 +115,14 @@ func MapValueMarshal(value reflect.Value, tag string, omitempty, omitminus, dost
 }
 
 func innerValue(value reflect.Value) reflect.Value {
-	for value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface {
+	for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
 		value = value.Elem()
 	}
 	return value
 }
 
 func innerType(value reflect.Type) reflect.Type {
-	for value.Kind() == reflect.Ptr {
+	for value.Kind() == reflect.Pointer {
 		value = value.Elem()
 	}
 	return value
@@ -140,7 +140,7 @@ func isEmptyValue(v reflect.Value) bool {
 		return v.Uint() == 0
 	case reflect.Float32, reflect.Float64:
 		return v.Float() == 0
-	case reflect.Interface, reflect.Ptr:
+	case reflect.Interface, reflect.Pointer:
 		return v.IsNil()
 	}
 	return false
@@ -170,7 +170,7 @@ func toString(value reflect.Value) (str string) {
 				}
 			}
 			return string(runes)
-		case reflect.Ptr, reflect.Interface:
+		case reflect.Pointer, reflect.Interface:
 			value = value.Elem()
 		case reflect.Struct:
 			return ""
