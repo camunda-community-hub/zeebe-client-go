@@ -54,7 +54,7 @@ func (dispatcher *jobDispatcher) run(client JobClient, handler JobHandler, concu
 				select {
 				case job := <-work:
 					handler(client, job)
-					if dispatcher.polled == nil || dispatcher.polled.remove(job.GetKey()) {
+					if dispatcher.polled == nil || dispatcher.polled.remove(job.ActivatedJob) {
 						dispatcher.workerFinished <- true
 					}
 				case <-closeWorkers:

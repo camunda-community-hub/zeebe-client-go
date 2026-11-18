@@ -126,7 +126,7 @@ func (poller *jobPoller) activateJobs() {
 		poller.setJobsRemainingCountMetric(poller.remaining)
 		for _, job := range response.Jobs {
 			if poller.polled != nil {
-				poller.polled.add(job.GetKey())
+				poller.polled.add(job)
 			}
 			poller.jobQueue <- entities.Job{ActivatedJob: job}
 		}

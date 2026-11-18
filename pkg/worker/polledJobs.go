@@ -14,38 +14,43 @@
 
 package worker
 
-import "sync"
+import (
+	"sync"
 
-// polledJobs records the keys of jobs the poller activated, so that only those jobs report back
-// to the poller when finished. The poller's remaining count covers polled jobs only; finish
-// signals for streamed jobs must not reach it (and must not be lost to another reader).
+	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
+)
+
+// polledJobs records the activations the poller received, so that only those jobs report back to
+// the poller when finished. The poller's remaining count covers polled jobs only; finish signals
+// for streamed jobs must not reach it (and must not be lost to another reader).
+//
+// Activations are tracked by their *pb.ActivatedJob pointer, not by job key: when a streamed
+// activation of a job times out, the poller may reactivate the same key while the streamed copy
+// is still being handled, and key-based tracking would let the streamed completion consume the
+// polled activation's entry, decrementing the poller's remaining count before the polled work
+// actually finished.
 type polledJobs struct {
-	mu   sync.Mutex
-	keys map[int64]int
+	mu          sync.Mutex
+	activations map[*pb.ActivatedJob]struct{}
 }
 
 func newPolledJobs() *polledJobs {
-	return &polledJobs{keys: make(map[int64]int)}
+	return &polledJobs{activations: make(map[*pb.ActivatedJob]struct{})}
 }
 
-func (p *polledJobs) add(key int64) {
+func (p *polledJobs) add(job *pb.ActivatedJob) {
 	p.mu.Lock()
-	p.keys[key]++
+	p.activations[job] = struct{}{}
 	p.mu.Unlock()
 }
 
-// remove reports whether key was activated by the poller, and forgets one activation of it.
-func (p *polledJobs) remove(key int64) bool {
+// remove reports whether job was activated by the poller, and forgets that activation.
+func (p *polledJobs) remove(job *pb.ActivatedJob) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	n, ok := p.keys[key]
-	if !ok {
+	if _, ok := p.activations[job]; !ok {
 		return false
 	}
-	if n <= 1 {
-		delete(p.keys, key)
-	} else {
-		p.keys[key] = n - 1
-	}
+	delete(p.activations, job)
 	return true
 }
