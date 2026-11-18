@@ -582,6 +582,43 @@ func (s *clientTestSuite) TestOverrideIPv6HostEnvVarVariants() {
 	}
 }
 
+func (s *clientTestSuite) TestGatewayAddressWithoutPortDefaultsToGatewayPortWhenPlaintext() {
+	for _, tc := range []struct {
+		name      string
+		address   string
+		envVar    bool
+		plaintext bool
+		want      string
+	}{
+		{name: "plaintext host", address: "127.0.0.1", plaintext: true, want: "127.0.0.1:26500"},
+		{name: "plaintext host from ZEEBE_ADDRESS", address: "127.0.0.1", envVar: true, plaintext: true, want: "127.0.0.1:26500"},
+		{name: "plaintext hostname", address: "zeebe", plaintext: true, want: "zeebe:26500"},
+		{name: "plaintext bracketed IPv6", address: "[::1]", plaintext: true, want: "[::1]:26500"},
+		{name: "plaintext with port", address: "zeebe:1234", plaintext: true, want: "zeebe:1234"},
+		{name: "plaintext gRPC target URI", address: "dns:///zeebe", plaintext: true, want: "dns:///zeebe"},
+		{name: "plaintext bare IPv6 is ambiguous", address: "::1", plaintext: true, want: "::1"},
+		// TLS keeps gRPC's default (443), which Camunda SaaS addresses rely on.
+		{name: "TLS host", address: "abc.bru-2.zeebe.camunda.io", want: "abc.bru-2.zeebe.camunda.io"},
+		{name: "TLS host from ZEEBE_ADDRESS", address: "abc.bru-2.zeebe.camunda.io", envVar: true, want: "abc.bru-2.zeebe.camunda.io"},
+	} {
+		s.Run(tc.name, func() {
+			env.unset(InsecureEnvVar)
+			env.unset(GatewayAddressEnvVar)
+			config := &ClientConfig{UsePlaintextConnection: tc.plaintext, GatewayAddress: tc.address}
+			if tc.envVar {
+				config.GatewayAddress = "overridden"
+				env.set(GatewayAddressEnvVar, tc.address)
+			}
+
+			client, err := NewClient(config)
+
+			s.Require().NoError(err)
+			s.Equal(tc.want, config.GatewayAddress)
+			_ = client.Close()
+		})
+	}
+}
+
 func createSecureServer(withSan bool) (net.Listener, *grpc.Server) {
 	certFile := "testdata/chain.cert.pem"
 	keyFile := "testdata/private.key.pem"
