@@ -197,6 +197,13 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 	var closeWait sync.WaitGroup
 	closeWait.Add(3)
 
+	// With streaming, the dispatcher also runs streamed jobs; only polled jobs may count down the
+	// poller's remaining jobs, so track which jobs the poller activated.
+	var polled *polledJobs
+	if builder.streamEnabled {
+		polled = newPolledJobs()
+	}
+
 	poller := jobPoller{
 		client:              builder.gatewayClient,
 		maxJobsActive:       builder.maxJobsActive,
@@ -208,6 +215,7 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 		jobQueue:        jobQueue,
 		workerFinished:  workerFinished,
 		closeSignal:     closePoller,
+		polled:          polled,
 		remaining:       0,
 		threshold:       int(math.Round(float64(builder.maxJobsActive) * builder.pollThreshold)),
 		metrics:         builder.metrics,
@@ -219,6 +227,7 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 		jobQueue:       jobQueue,
 		workerFinished: workerFinished,
 		closeSignal:    closeDispatcher,
+		polled:         polled,
 	}
 
 	go dispatcher.run(builder.jobClient, builder.handler, builder.concurrency, &closeWait)
