@@ -325,8 +325,10 @@ func (s *clientTestSuite) TestClientWithDefaultRootCa() {
 	// when
 	s.Error(err)
 	if grpcStatus, ok := status.FromError(err); ok {
-		// asserts that an attempt was made to validate the certificate (which fails because it's not installed)
-		s.Contains(grpcStatus.Message(), "certificate signed by unknown authority")
+		// asserts that an attempt was made to validate the certificate (which fails because it's not installed).
+		// The reason differs by platform verifier: "certificate signed by unknown authority" on Linux,
+		// "certificate is not standards compliant" on macOS.
+		s.Contains(grpcStatus.Message(), "tls: failed to verify certificate")
 	}
 }
 
