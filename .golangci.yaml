@@ -1,17 +1,46 @@
+version: "2"
 linters:
   enable:
-  - gofmt
-  - revive
-  - misspell
-  - dupl
-  - unused
-  - gosec
-  - gocritic
-
-issues:
- exclude-rules:
-    - path: _test\.go
-      linters:
-        - errcheck
-        - dupl
-        - gosec
+    - dupl
+    - gocritic
+    - gosec
+    - misspell
+    - revive
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - gosec
+        path: _test\.go
+      # Checks that golangci-lint v2 enables by default but v1.55 did not. Excluded so
+      # the v2 migration is behavior-neutral; reviewed separately. var-naming would
+      # rename public API (TenantIds -> TenantIDs), a breaking change.
+      - linters:
+          - revive
+        text: "^(unused-parameter|var-naming|redefines-builtin-id):"
+      - linters:
+          - staticcheck
+        text: "^QF[0-9]+:"
+      - linters:
+          - gosec
+        text: "^G115:"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
