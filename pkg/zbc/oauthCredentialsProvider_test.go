@@ -15,6 +15,7 @@
 package zbc
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -31,7 +32,6 @@ import (
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/worker"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
