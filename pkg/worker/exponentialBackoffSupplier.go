@@ -17,6 +17,7 @@ package worker
 import (
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,7 @@ func NewExponentialBackoffBuilder() ExponentialBackoff {
 		backoffFactor: 1.6,
 		jitterFactor:  0.1,
 		random:        rand.New(rand.NewSource(time.Now().Unix())), //nolint G404, we dont need a secure random number generator
+		randomMu:      &sync.Mutex{},
 	}
 }
 
@@ -65,12 +67,17 @@ func (e ExponentialBackoff) Random(random *rand.Rand) ExponentialBackoffBuilder 
 }
 
 func (e ExponentialBackoff) Build() BackoffSupplier {
+	mu := e.randomMu
+	if mu == nil {
+		mu = &sync.Mutex{}
+	}
 	return ExponentialBackoff{
 		minDelay:      e.minDelay,
 		maxDelay:      e.maxDelay,
 		backoffFactor: e.backoffFactor,
 		jitterFactor:  e.jitterFactor,
 		random:        e.random,
+		randomMu:      mu,
 	}
 }
 
@@ -78,6 +85,10 @@ type ExponentialBackoff struct {
 	minDelay, maxDelay          time.Duration
 	backoffFactor, jitterFactor float64
 	random                      *rand.Rand
+	// randomMu guards random, which is not safe for concurrent use. It is a
+	// pointer so that value-receiver copies of ExponentialBackoff share the
+	// same lock as they share the same random source.
+	randomMu *sync.Mutex
 }
 
 func (e ExponentialBackoff) SupplyRetryDelay(currentRetryDelay time.Duration) time.Duration {
@@ -92,5 +103,11 @@ func (e ExponentialBackoff) computeJitter(value float64) float64 {
 	minFactor := value * -e.jitterFactor
 	maxFactor := value * e.jitterFactor
 
-	return (e.random.Float64() * (maxFactor - minFactor)) + minFactor
+	// rand.Rand is not safe for concurrent use; multiple job pollers share this
+	// supplier and call SupplyRetryDelay concurrently.
+	e.randomMu.Lock()
+	random := e.random.Float64()
+	e.randomMu.Unlock()
+
+	return (random * (maxFactor - minFactor)) + minFactor
 }

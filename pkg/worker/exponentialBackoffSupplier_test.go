@@ -17,6 +17,7 @@ package worker
 import (
 	"github.com/stretchr/testify/assert"
 	"math"
+	"sync"
 	"testing"
 	"time"
 )
@@ -113,4 +114,30 @@ func TestExponentialBackoffSupplier_ShouldBeRandomizedWithJitter(t *testing.T) {
 		// then - as we used 0 for jitter factor, we can guarantee all are sorted
 		assert.IsIncreasing(t, delay, retryDelays[i-1], "backoff is strictly increasing")
 	}
+}
+
+// TestExponentialBackoffSupplier_IsConcurrencySafe reproduces the panic that
+// occurred when multiple job pollers shared a single supplier and called
+// SupplyRetryDelay concurrently, corrupting the shared *rand.Rand. Run with
+// -race to catch the data race.
+func TestExponentialBackoffSupplier_IsConcurrencySafe(t *testing.T) {
+	e := NewExponentialBackoffBuilder().
+		JitterFactor(0.1).
+		Build()
+
+	const goroutines = 50
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for g := 0; g < goroutines; g++ {
+		go func() {
+			defer wg.Done()
+			delay := time.Millisecond * 50
+			for i := 0; i < iterations; i++ {
+				delay = e.SupplyRetryDelay(delay)
+			}
+		}()
+	}
+	wg.Wait()
 }
