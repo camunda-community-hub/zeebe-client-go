@@ -367,9 +367,14 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 		}
 	}
 
-	// the streaming RPC stays open for the whole test without delivering jobs
+	// the streaming RPC stays open for the whole test without delivering jobs, until
+	// worker.Close() cancels the RPC context
+	streamCtx, streamCancel := context.WithCancel(context.Background())
+	defer streamCancel()
+	stream.EXPECT().Context().Return(streamCtx).AnyTimes()
 	stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivatedJob, error) {
-		select {}
+		<-stream.Context().Done()
+		return nil, stream.Context().Err()
 	}).AnyTimes()
 	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().Return(stream, nil)
 
@@ -395,6 +400,11 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 				return batch(3, 4), nil
 			}),
 	)
+	// finishing the second batch can race the deferred Close and trigger one more poll;
+	// it must find no jobs so the worker can close cleanly
+	empty := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+	empty.EXPECT().Recv().Return(nil, io.EOF).AnyTimes()
+	client.EXPECT().ActivateJobs(gomock.Any(), &rpcMsg{msg: activateJobsRequest(2)}).Return(empty, nil).AnyTimes()
 
 	retryPred := func(ctx context.Context, err error) bool { return false }
 	activate := make(chan entities.Job)
