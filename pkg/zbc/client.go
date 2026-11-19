@@ -171,6 +171,10 @@ func NewClient(config *ClientConfig) (Client, error) {
 		return nil, err
 	}
 
+	if config.UsePlaintextConnection {
+		config.GatewayAddress = withDefaultGatewayPort(config.GatewayAddress)
+	}
+
 	err = configureConnectionSecurity(config)
 	if err != nil {
 		return nil, err
@@ -211,6 +215,27 @@ func stripIPv6Brackets(host string) string {
 		return host[1 : len(host)-1]
 	}
 	return host
+}
+
+// withDefaultGatewayPort adds DefaultAddressPort to a host-only gateway address, so a
+// plaintext ZEEBE_ADDRESS=zeebe dials zeebe:26500 like zbctl --address zeebe does,
+// instead of gRPC's default port 443. TLS addresses are left alone because Camunda SaaS
+// addresses rely on that 443 default. gRPC target URIs and bare IPv6 addresses (which
+// are ambiguous without brackets) are returned unchanged.
+func withDefaultGatewayPort(address string) string {
+	if address == "" || strings.Contains(address, "/") {
+		return address
+	}
+	if _, _, err := net.SplitHostPort(address); err == nil {
+		return address
+	}
+	host := address
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	} else if strings.Contains(host, ":") {
+		return address
+	}
+	return net.JoinHostPort(host, DefaultAddressPort)
 }
 
 func applyClientEnvOverrides(config *ClientConfig) error {
