@@ -31,6 +31,12 @@ func TestResolveVersion(t *testing.T) {
 		}
 	}
 
+	replaced := func(replacement debug.Module) *debug.BuildInfo {
+		info := dependency("v8.7.0")
+		info.Deps[1].Replace = &replacement
+		return info
+	}
+
 	tests := []struct {
 		name string
 		info *debug.BuildInfo
@@ -39,7 +45,10 @@ func TestResolveVersion(t *testing.T) {
 	}{
 		{"released dependency", dependency("v8.7.0"), true, "8.7.0"},
 		{"pseudo-version dependency", dependency("v8.6.1-0.20261119050036-5b0bf18566c1"), true, "8.6.1-0.20261119050036-5b0bf18566c1"},
-		{"replaced dependency without version", dependency(""), true, fallback},
+		{"dependency without version", dependency(""), true, fallback},
+		{"dependency replaced by a local path", replaced(debug.Module{Path: "../zeebe-client-go"}), true, fallback},
+		{"dependency replaced by another version", replaced(debug.Module{Path: ModulePath, Version: "v8.8.0"}), true, "8.8.0"},
+		{"dependency replaced by a fork", replaced(debug.Module{Path: "example.com/fork", Version: "v8.7.1"}), true, "8.7.1"},
 		{"main module built from a tag", &debug.BuildInfo{Main: debug.Module{Path: ModulePath, Version: "v8.7.0"}}, true, "8.7.0"},
 		{"main module from a checkout", &debug.BuildInfo{Main: debug.Module{Path: ModulePath, Version: "(devel)"}}, true, fallback},
 		{"module not in the build", &debug.BuildInfo{Main: debug.Module{Path: "example.com/app"}}, true, fallback},

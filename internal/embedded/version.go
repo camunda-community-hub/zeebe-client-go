@@ -44,7 +44,7 @@ func init() {
 
 // resolveVersion returns this module's version from build info, without the
 // leading "v", or fallback when the build carries no usable version (no build
-// info, a "(devel)" checkout, or a replace directive without a version).
+// info, a "(devel)" checkout, or a local replace directive).
 func resolveVersion(info *debug.BuildInfo, ok bool, fallback string) string {
 	if !ok || info == nil {
 		return fallback
@@ -58,6 +58,11 @@ func resolveVersion(info *debug.BuildInfo, ok bool, fallback string) string {
 				break
 			}
 		}
+	}
+	if module != nil && module.Replace != nil {
+		// The compiled code is the replacement: a versioned replacement reports its
+		// own version, a local (path) replacement has none and uses the fallback.
+		module = module.Replace
 	}
 	if module == nil || module.Version == "" || module.Version == "(devel)" {
 		return fallback
