@@ -222,6 +222,47 @@ func (s *clientTestSuite) TestSpecificUserAgent() {
 	s.Require().Contains(userAgent[0], "anotherUserAgentLikeZbctl")
 }
 
+func (s *clientTestSuite) captureUserAgent(configured string) string {
+	var incomingContext = make(map[string][]string)
+	lis, server := createServerWithUnaryInterceptor(func(ctx context.Context, _ interface{}, _ *grpc.UnaryServerInfo, _ grpc.UnaryHandler) (interface{}, error) {
+		incomingContext, _ = metadata.FromIncomingContext(ctx)
+		return nil, nil
+	})
+	go server.Serve(lis)
+	defer server.Stop()
+
+	client, err := NewClient(&ClientConfig{
+		GatewayAddress:         lis.Addr().String(),
+		UsePlaintextConnection: true,
+		UserAgent:              configured,
+	})
+	s.Require().NoError(err)
+	ctx, cancel := context.WithTimeout(context.Background(), utils.DefaultTestTimeout)
+	defer cancel()
+
+	_, _ = client.NewTopologyCommand().Send(ctx)
+	userAgent := incomingContext["user-agent"]
+	s.Require().Len(userAgent, 1)
+	return userAgent[0]
+}
+
+func (s *clientTestSuite) TestCustomUserAgentKeepsClientNameFirst() {
+	// when an application names itself
+	userAgent := s.captureUserAgent("my-app/1.0")
+
+	// then usage reports still attribute the traffic to this client
+	s.Require().True(strings.HasPrefix(userAgent, "zeebe-client-go/"+Version+" my-app/1.0"), userAgent)
+}
+
+func (s *clientTestSuite) TestZeebeClientUserAgentIsNotPrefixed() {
+	// when one of this repo's own tools (zbctl) names itself
+	userAgent := s.captureUserAgent("zeebe-client-zbctl/1.2.3")
+
+	// then its own name stays first so it remains distinguishable
+	s.Require().True(strings.HasPrefix(userAgent, "zeebe-client-zbctl/1.2.3 "), userAgent)
+	s.Require().NotContains(userAgent, "zeebe-client-go/")
+}
+
 func (s *clientTestSuite) TestCaCertificateEnvVar() {
 	// given
 	lis, grpcServer := createSecureServer(false)
