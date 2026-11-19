@@ -70,10 +70,29 @@ type ClientConfig struct {
 	// of 45 seconds being used
 	KeepAlive time.Duration
 
-	// UserAgent is an optional field, to specify the user-agent header which should be sent by each
-	// gRPC request. Defaults to zeebe-client-go/%version.
+	// UserAgent is an optional field to identify the application in the user-agent header sent with
+	// each gRPC request. The header always starts with zeebe-client-go/<version>, followed by this
+	// value, so gateway usage reports can still attribute the traffic to this client; for example
+	// "my-app/1.0" is sent as "zeebe-client-go/8.7.0 my-app/1.0". A value that already starts with
+	// "zeebe-client-" (such as zbctl's "zeebe-client-zbctl/<version>") is sent unchanged.
 	UserAgent string
 	DialOpts  []grpc.DialOption
+}
+
+// userAgent returns the user-agent header value for the configured value. It keeps
+// zeebe-client-go/<version> as the first product token, so usage reports that group by
+// the first token attribute the traffic to this client rather than to the application.
+func userAgent(configured string) string {
+	clientName := "zeebe-client-go/" + Version
+	configured = strings.TrimSpace(configured)
+	switch {
+	case configured == "":
+		return clientName
+	case strings.HasPrefix(configured, "zeebe-client-"):
+		return configured
+	default:
+		return clientName + " " + configured
+	}
 }
 
 // ErrFileNotFound is returned whenever a file can't be found at the provided path. Use this value to do error comparison.
@@ -198,9 +217,7 @@ func NewClient(config *ClientConfig) (Client, error) {
 		return nil, err
 	}
 
-	if config.UserAgent == "" {
-		config.UserAgent = "zeebe-client-go/" + Version
-	}
+	config.UserAgent = userAgent(config.UserAgent)
 
 	config.DialOpts = append(config.DialOpts, grpc.WithUserAgent(config.UserAgent))
 
