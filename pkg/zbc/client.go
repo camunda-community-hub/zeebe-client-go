@@ -137,6 +137,14 @@ func (c *ClientImpl) NewUpdateJobTimeoutCommand() commands.UpdateJobTimeoutComma
 	return commands.NewUpdateJobTimeoutCommand(c.gateway, c.credentialsProvider.ShouldRetryRequest)
 }
 
+func (c *ClientImpl) NewModifyInstanceCommand() commands.ModifyInstanceCommandStep1 {
+	return commands.NewModifyInstanceCommand(c.gateway, c.credentialsProvider.ShouldRetryRequest)
+}
+
+func (c *ClientImpl) NewMigrateInstanceCommand() commands.MigrateInstanceCommandStep1 {
+	return commands.NewMigrateInstanceCommand(c.gateway, c.credentialsProvider.ShouldRetryRequest)
+}
+
 func (c *ClientImpl) NewSetVariablesCommand() commands.SetVariablesCommandStep1 {
 	return commands.NewSetVariablesCommand(c.gateway, c.credentialsProvider.ShouldRetryRequest)
 }
