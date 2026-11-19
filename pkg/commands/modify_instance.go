@@ -25,12 +25,16 @@ type ModifyInstanceCommandStep1 interface {
 	ProcessInstanceKey(int64) ModifyInstanceCommandStep2
 }
 
+// NoAncestorElementInstanceKey is the gateway sentinel (-1) meaning "create the new
+// element instance within an existing element instance of the flow scope".
+const NoAncestorElementInstanceKey int64 = -1
+
 // ModifyInstanceCommandStep2 adds an instruction to the modification. At least one
 // instruction is required before the command can be sent.
 type ModifyInstanceCommandStep2 interface {
 	// ActivateElement activates the element with the given id. The element's flow
 	// scope must have exactly one active instance; otherwise use
-	// ActivateElementWithAncestor.
+	// ActivateElementWithAncestor. It sends NoAncestorElementInstanceKey (-1).
 	ActivateElement(elementID string) ModifyInstanceActivateStep
 	// ActivateElementWithAncestor activates the element with the given id inside the
 	// flow scope of the given ancestor element instance.
@@ -72,7 +76,7 @@ func (cmd *ModifyInstanceCommand) ProcessInstanceKey(key int64) ModifyInstanceCo
 }
 
 func (cmd *ModifyInstanceCommand) ActivateElement(elementID string) ModifyInstanceActivateStep {
-	return cmd.ActivateElementWithAncestor(elementID, 0)
+	return cmd.ActivateElementWithAncestor(elementID, NoAncestorElementInstanceKey)
 }
 
 func (cmd *ModifyInstanceCommand) ActivateElementWithAncestor(elementID string, ancestorElementInstanceKey int64) ModifyInstanceActivateStep {

@@ -36,7 +36,8 @@ func TestModifyInstanceCommand(t *testing.T) {
 		ProcessInstanceKey: 123,
 		ActivateInstructions: []*pb.ModifyProcessInstanceRequest_ActivateInstruction{
 			{
-				ElementId: "taskA",
+				ElementId:                  "taskA",
+				AncestorElementInstanceKey: -1,
 				VariableInstructions: []*pb.ModifyProcessInstanceRequest_VariableInstruction{
 					{Variables: `{"foo":"bar"}`},
 					{Variables: `{"x":1}`, ScopeId: "subprocess"},
