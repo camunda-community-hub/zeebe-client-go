@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -203,6 +204,15 @@ func NewClient(config *ClientConfig) (Client, error) {
 	}, nil
 }
 
+// stripIPv6Brackets removes one surrounding pair of square brackets from host, if present,
+// so an already-bracketed IPv6 host is not double-bracketed by net.JoinHostPort.
+func stripIPv6Brackets(host string) string {
+	if len(host) >= 2 && host[0] == '[' && host[len(host)-1] == ']' {
+		return host[1 : len(host)-1]
+	}
+	return host
+}
+
 func applyClientEnvOverrides(config *ClientConfig) error {
 	if insecureConn := env.get(InsecureEnvVar); insecureConn != "" {
 		config.UsePlaintextConnection = insecureConn == "true"
@@ -216,14 +226,14 @@ func applyClientEnvOverrides(config *ClientConfig) error {
 		config.OverrideAuthority = overrideAuthority
 	}
 
-	if gatewayHost := env.get(GatewayHostEnvVar); gatewayHost != "" {
+	if gatewayHost := stripIPv6Brackets(env.get(GatewayHostEnvVar)); gatewayHost != "" {
 		if gatewayPort := env.get(GatewayPortEnvVar); gatewayPort != "" {
-			config.GatewayAddress = fmt.Sprintf("%s:%s", gatewayHost, gatewayPort)
+			config.GatewayAddress = net.JoinHostPort(gatewayHost, gatewayPort)
 		} else {
-			config.GatewayAddress = fmt.Sprintf("%s:%s", gatewayHost, DefaultAddressPort)
+			config.GatewayAddress = net.JoinHostPort(gatewayHost, DefaultAddressPort)
 		}
 	} else if gatewayPort := env.get(GatewayPortEnvVar); gatewayPort != "" {
-		config.GatewayAddress = fmt.Sprintf("%s:%s", DefaultAddressHost, gatewayPort)
+		config.GatewayAddress = net.JoinHostPort(DefaultAddressHost, gatewayPort)
 	} else if gatewayAddress := env.get(GatewayAddressEnvVar); gatewayAddress != "" {
 		config.GatewayAddress = gatewayAddress
 	}

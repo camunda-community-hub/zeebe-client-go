@@ -2,5 +2,13 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "The go directive is the minimum Go version for users of the library (and CI's Go version via go-version-file). Raise it deliberately, not on every Go release.",
+      "matchDatasources": ["golang-version"],
+      "matchDepTypes": ["golang"],
+      "enabled": false
+    }
   ]
 }

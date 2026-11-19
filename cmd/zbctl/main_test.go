@@ -226,9 +226,9 @@ var tests = []testCase{
 		cmd:        strings.Fields("--insecure update timeout 2251799813685253 --timeout 10000"),
 		goldenFile: "testdata/update_unknown_job_timeout.golden",
 	},
-	// In order to determine the job id: strings.Fields("--insecure activate jobs jobType --maxJobsToActivate 1")
-	// command was run in the below test (in the "cmd" part instead of a setup part)
-	// to check it's output - the job key of the generated job was always the same
+	// The job key depends on how many records the broker wrote before (every ActivateJobs request
+	// writes one, including polls by earlier worker tests), so it is taken from the output of the
+	// setup activation rather than hard-coded.
 	{
 		name: "update job timeout",
 		setupCmds: [][]string{
@@ -236,7 +236,7 @@ var tests = []testCase{
 			strings.Fields("--insecure create instance jobProcess"),
 			strings.Fields("--insecure activate jobs jobType --maxJobsToActivate 1"),
 		},
-		cmd:        strings.Fields("--insecure update timeout 2251799813685372 --timeout 10000"),
+		cmd:        strings.Fields("--insecure update timeout " + activatedJobKeyPlaceholder + " --timeout 10000"),
 		goldenFile: "testdata/update_job_timeout.golden",
 	},
 }
@@ -302,6 +302,7 @@ func (s *integrationTestSuite) TestStreamingJobWorker() {
 func (s *integrationTestSuite) TestCommonCommands() {
 	for _, test := range tests {
 		passed := s.T().Run(test.name, func(t *testing.T) {
+			activatedJobKey := ""
 			for _, cmd := range test.setupCmds {
 				fmt.Printf("Executing setup cmd '%s'\n", cmd)
 				cmdOut, err := s.runCommand(cmd, false)
@@ -311,6 +312,9 @@ func (s *integrationTestSuite) TestCommonCommands() {
 				} else {
 					fmt.Printf("Setup cmd execution success. Result:\n'%s'", cmdOut)
 				}
+				if key, ok := firstActivatedJobKey(cmdOut); ok {
+					activatedJobKey = key
+				}
 
 				// to mitigate race conditions between setup commands,
 				// and between setup command and the test command,
@@ -318,14 +322,25 @@ func (s *integrationTestSuite) TestCommonCommands() {
 				<-time.After(time.Duration(1) * time.Second)
 			}
 
-			cmdOut, err := s.runCommand(test.cmd, test.useHostAndPort, test.envVars...)
+			testCmd := make([]string, len(test.cmd))
+			for i, arg := range test.cmd {
+				if arg == activatedJobKeyPlaceholder {
+					if activatedJobKey == "" {
+						t.Fatalf("command uses %s, but no setup command activated a job", activatedJobKeyPlaceholder)
+					}
+					arg = activatedJobKey
+				}
+				testCmd[i] = arg
+			}
+
+			cmdOut, err := s.runCommand(testCmd, test.useHostAndPort, test.envVars...)
 			exitErr := &exec.ExitError{}
 			// if the exit code is -1, then the process did not start properly or was killed by a
 			// signal, which is what happens when its execution times out. as some tests rely
 			// on exiting with non 0 status codes, we can't just bail out if there is some error
 			if err != nil && errors.As(err, &exitErr) && exitErr.ExitCode() == -1 {
 				t.Fatalf("failed while executing command under test '%s' (%v). Output: \n%s",
-					strings.Join(test.cmd, " "), err, cmdOut)
+					strings.Join(testCmd, " "), err, cmdOut)
 			}
 
 			s.assertGoldenFileMatchesOutput(test.goldenFile, test.jsonOutput, test.name, cmdOut)
@@ -355,6 +370,23 @@ func (s *integrationTestSuite) assertGoldenFileMatchesOutput(goldenFile string, 
 	}
 
 	assertEq(s.T(), testName, goldenOut, cmdOut)
+}
+
+// activatedJobKeyPlaceholder in a test command is replaced by the key of the job activated by the
+// test's setup commands.
+const activatedJobKeyPlaceholder = "{activatedJobKey}"
+
+// firstActivatedJobKey returns the key of the first job in the output of `activate jobs`.
+func firstActivatedJobKey(out []byte) (string, bool) {
+	var activated struct {
+		Jobs []struct {
+			Key json.Number `json:"key"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal(out, &activated); err != nil || len(activated.Jobs) == 0 {
+		return "", false
+	}
+	return activated.Jobs[0].Key.String(), true
 }
 
 // reformatJSON formats the JSON files in the same way so that whitespace differences are ignored
@@ -441,7 +473,7 @@ func buildZbctl() ([]byte, error) {
 	case "linux":
 		zbctl = "zbctl"
 	case "darwin":
-		zbctl = "zbctl.darwin"
+		zbctl = "zbctl.darwin-" + runtime.GOARCH
 	default:
 		return nil, fmt.Errorf("can't run zbctl tests on unsupported OS '%s'", runtime.GOOS)
 	}

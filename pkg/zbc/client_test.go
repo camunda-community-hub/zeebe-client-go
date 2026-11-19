@@ -325,8 +325,10 @@ func (s *clientTestSuite) TestClientWithDefaultRootCa() {
 	// when
 	s.Error(err)
 	if grpcStatus, ok := status.FromError(err); ok {
-		// asserts that an attempt was made to validate the certificate (which fails because it's not installed)
-		s.Contains(grpcStatus.Message(), "certificate signed by unknown authority")
+		// asserts that an attempt was made to validate the certificate (which fails because it's not installed).
+		// The reason differs by platform verifier: "certificate signed by unknown authority" on Linux,
+		// "certificate is not standards compliant" on macOS.
+		s.Contains(grpcStatus.Message(), "tls: failed to verify certificate")
 	}
 }
 
@@ -543,6 +545,41 @@ func (s *clientTestSuite) TestOverrideHostAndPortEnvVar() {
 	// then
 	s.NoError(err)
 	s.EqualValues(fmt.Sprintf("%s:%s", address, port), config.GatewayAddress)
+}
+
+func (s *clientTestSuite) TestOverrideIPv6HostEnvVar() {
+	// given
+	env.set(GatewayHostEnvVar, "::1")
+	env.set(GatewayPortEnvVar, "9090")
+	config := &ClientConfig{
+		GatewayAddress:         "wrong_address",
+		UsePlaintextConnection: true,
+	}
+
+	// when
+	_, err := NewClient(config)
+
+	// then
+	s.NoError(err)
+	s.EqualValues("[::1]:9090", config.GatewayAddress)
+}
+
+func (s *clientTestSuite) TestOverrideIPv6HostEnvVarVariants() {
+	for _, tc := range []struct{ host, port, want string }{
+		{"[::1]", "9090", "[::1]:9090"},
+		{"::1", "", "[::1]:" + DefaultAddressPort},
+		{"[::1]", "", "[::1]:" + DefaultAddressPort},
+	} {
+		env.set(GatewayHostEnvVar, tc.host)
+		if tc.port != "" {
+			env.set(GatewayPortEnvVar, tc.port)
+		} else {
+			env.unset(GatewayPortEnvVar)
+		}
+		config := &ClientConfig{GatewayAddress: "wrong_address", UsePlaintextConnection: true}
+		s.NoError(applyClientEnvOverrides(config))
+		s.EqualValues(tc.want, config.GatewayAddress, "host=%q port=%q", tc.host, tc.port)
+	}
 }
 
 func createSecureServer(withSan bool) (net.Listener, *grpc.Server) {

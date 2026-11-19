@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 
+	"github.com/testcontainers/testcontainers-go/internal/config"
 	"github.com/testcontainers/testcontainers-go/internal/core"
+	"github.com/testcontainers/testcontainers-go/log"
 )
 
 var (
@@ -19,7 +22,7 @@ type GenericContainerRequest struct {
 	ContainerRequest              // embedded request for provider
 	Started          bool         // whether to auto-start the container
 	ProviderType     ProviderType // which provider to use, Docker if empty
-	Logger           Logging      // provide a container specific Logging - use default global logger if empty
+	Logger           log.Logger   // provide a container specific Logging - use default global logger if empty
 	Reuse            bool         // reuse an existing container if it exists or create a new one. a container name mustn't be empty
 }
 
@@ -51,11 +54,12 @@ func GenericContainer(ctx context.Context, req GenericContainerRequest) (Contain
 		return nil, ErrReuseEmptyName
 	}
 
-	logging := req.Logger
-	if logging == nil {
-		logging = Logger
+	logger := req.Logger
+	if logger == nil {
+		// Ensure there is always a non-nil logger by default
+		logger = log.Default()
 	}
-	provider, err := req.ProviderType.GetProvider(WithLogger(logging))
+	provider, err := req.ProviderType.GetProvider(WithLogger(logger))
 	if err != nil {
 		return nil, fmt.Errorf("get provider: %w", err)
 	}
@@ -92,7 +96,46 @@ type GenericProvider interface {
 	ImageProvider
 }
 
-// GenericLabels returns a map of labels that can be used to identify containers created by this library
+// GenericLabels returns a map of labels that can be used to identify resources
+// created by this library. This includes the standard LabelSessionID if the
+// reaper is enabled, otherwise this is excluded to prevent resources being
+// incorrectly reaped.
 func GenericLabels() map[string]string {
-	return core.DefaultLabels(core.SessionID())
+	return core.DefaultLabels(config.Read().SessionID)
+}
+
+// AddGenericLabels adds the generic labels to target.
+func AddGenericLabels(target map[string]string) {
+	maps.Copy(target, GenericLabels())
+}
+
+// Run is a convenience function that creates a new container and starts it.
+// It calls the GenericContainer function and returns a concrete DockerContainer type.
+func Run(ctx context.Context, img string, opts ...ContainerCustomizer) (*DockerContainer, error) {
+	req := ContainerRequest{
+		Image: img,
+	}
+
+	genericContainerReq := GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	}
+
+	for _, opt := range opts {
+		if err := opt.Customize(&genericContainerReq); err != nil {
+			return nil, fmt.Errorf("customize: %w", err)
+		}
+	}
+
+	ctr, err := GenericContainer(ctx, genericContainerReq)
+	var c *DockerContainer
+	if ctr != nil {
+		c = ctr.(*DockerContainer)
+	}
+
+	if err != nil {
+		return c, fmt.Errorf("generic container: %w", err)
+	}
+
+	return c, nil
 }

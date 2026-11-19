@@ -63,7 +63,7 @@ func (s *JobStreamerSuite) TestShouldNotOpenStreamIfClosed() {
 
 func (s *JobStreamerSuite) TestShouldStopStreamOnCloseSignal() {
 	// given
-	var ctx context.Context
+	var call sendCall
 	state := newTestState()
 	defer state.close(s)
 	state.command.setSendChanBuffer(0)
@@ -71,7 +71,7 @@ func (s *JobStreamerSuite) TestShouldStopStreamOnCloseSignal() {
 	// when - should not hang because the stream is closed
 	go state.streamer.stream(state.waitGroup)
 	select {
-	case ctx = <-state.command.sendChan:
+	case call = <-state.command.sendChan:
 		state.streamer.closeSignal <- struct{}{}
 	case <-time.After(10 * time.Second):
 		s.FailNow("Timed out waiting for stream call to finish")
@@ -79,11 +79,8 @@ func (s *JobStreamerSuite) TestShouldStopStreamOnCloseSignal() {
 
 	// then
 	select {
-	case <-ctx.Done():
-		// since recreating the stream is async, this may be 1 or 2 depending on the
-		// scheduling
-		s.GreaterOrEqual(state.command.sendCount, 1)
-		s.LessOrEqual(state.command.sendCount, 2)
+	case <-call.ctx.Done():
+		s.EqualValues(1, call.n)
 	case <-time.After(10 * time.Second):
 		s.FailNow("Context was not canceled even though the streamer was closed via a signal")
 	}
@@ -91,7 +88,7 @@ func (s *JobStreamerSuite) TestShouldStopStreamOnCloseSignal() {
 
 func (s *JobStreamerSuite) TestShouldRecreateStreamOnCompleted() {
 	// given
-	var ctx context.Context
+	var call sendCall
 	state := newTestState()
 	defer state.close(s)
 	// will block on the first send call
@@ -103,7 +100,7 @@ func (s *JobStreamerSuite) TestShouldRecreateStreamOnCompleted() {
 	// capture second call context
 	case <-state.command.sendChan:
 		select {
-		case ctx = <-state.command.sendChan:
+		case call = <-state.command.sendChan:
 			state.streamer.closeSignal <- struct{}{}
 		case <-time.After(10 * time.Second):
 			s.FailNow("Timed out waiting for stream call to finish")
@@ -112,11 +109,14 @@ func (s *JobStreamerSuite) TestShouldRecreateStreamOnCompleted() {
 		s.FailNow("Timed out waiting for stream call to finish")
 	}
 
-	// then
+	// then - the second stream was opened by the completion of the first. The
+	// streamer reopens again at once, so a third Send may already have started:
+	// assert on the captured call, not on the running total.
 	select {
-	case <-ctx.Done():
-		s.EqualValues(2, state.command.sendCount)
-		s.EqualValues(0, state.backoff.calledCount)
+	case <-call.ctx.Done():
+		s.EqualValues(2, call.n)
+		calls, _ := state.backoff.calls()
+		s.EqualValues(0, calls)
 	case <-time.After(10 * time.Second):
 		s.FailNow("Context was not canceled even though the streamer was closed via a signal")
 	}
@@ -124,7 +124,7 @@ func (s *JobStreamerSuite) TestShouldRecreateStreamOnCompleted() {
 
 func (s *JobStreamerSuite) TestShouldRecreateStreamOnErrorWithBackoff() {
 	// given
-	var ctx context.Context
+	var call sendCall
 	state := newTestState()
 	defer state.close(s)
 	state.command.err = errors.New("Foo")
@@ -138,7 +138,13 @@ func (s *JobStreamerSuite) TestShouldRecreateStreamOnErrorWithBackoff() {
 	// capture second call context
 	case <-state.command.sendChan:
 		select {
-		case ctx = <-state.command.sendChan:
+		case call = <-state.command.sendChan:
+			// the second failure backs off for 2h; wait until it has asked for that
+			// delay, or the close signal can win the race with the stream result
+			s.Eventually(func() bool {
+				calls, _ := state.backoff.calls()
+				return calls == 2
+			}, 10*time.Second, time.Millisecond)
 			state.streamer.closeSignal <- struct{}{}
 		case <-time.After(10 * time.Second):
 			s.FailNow("Timed out waiting for stream call to finish")
@@ -150,11 +156,13 @@ func (s *JobStreamerSuite) TestShouldRecreateStreamOnErrorWithBackoff() {
 	// then
 
 	select {
-	case <-ctx.Done():
-		s.EqualValues(2, state.backoff.calledCount)
-		s.Require().Len(state.backoff.currentRetryDelays, 2)
-		s.EqualValues(0, state.backoff.currentRetryDelays[0])
-		s.EqualValues(1, state.backoff.currentRetryDelays[1])
+	case <-call.ctx.Done():
+		s.EqualValues(2, call.n)
+		calls, delays := state.backoff.calls()
+		s.EqualValues(2, calls)
+		s.Require().Len(delays, 2)
+		s.EqualValues(0, delays[0])
+		s.EqualValues(1, delays[1])
 	case <-time.After(10 * time.Second):
 		s.FailNow("Context was not canceled even though the streamer was closed via a signal")
 	}
@@ -170,7 +178,7 @@ type testState struct {
 
 func newTestState() *testState {
 	command := mockStreamJobsCommand{
-		sendChan: make(chan context.Context, 10),
+		sendChan: make(chan sendCall, 10),
 	}
 	backoff := mockBackoffSupplier{}
 	state := testState{
@@ -210,13 +218,23 @@ func (state *testState) close(suite *JobStreamerSuite) {
 	}
 }
 
+// sendCall is one Send on the mock: its context, and its 1-based call number.
+type sendCall struct {
+	ctx context.Context
+	n   int
+}
+
+// The mocks are called from the streamer's goroutines, so every field the test
+// reads afterwards is guarded by mu.
 type mockStreamJobsCommand struct {
+	mu        sync.Mutex
 	sendCount int
 	err       error
-	sendChan  chan context.Context
+	sendChan  chan sendCall
 }
 
 type mockBackoffSupplier struct {
+	mu                 sync.Mutex
 	calledCount        int
 	delaySequence      []time.Duration
 	currentRetryDelays []time.Duration
@@ -227,18 +245,27 @@ func (m *mockStreamJobsCommand) RequestTimeout(_ time.Duration) commands.Dispatc
 }
 
 func (m *mockStreamJobsCommand) Send(ctx context.Context) error {
+	m.mu.Lock()
 	m.sendCount++
-	m.sendChan <- ctx
+	call := sendCall{ctx: ctx, n: m.sendCount}
+	sendChan := m.sendChan
+	m.mu.Unlock()
+
+	sendChan <- call
 	return m.err
 }
 
 func (m *mockStreamJobsCommand) setSendChanBuffer(count int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	sendChan := m.sendChan
-	m.sendChan = make(chan context.Context, count)
+	m.sendChan = make(chan sendCall, count)
 	close(sendChan)
 }
 
 func (m *mockBackoffSupplier) SupplyRetryDelay(currentRetryDelay time.Duration) time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.currentRetryDelays = append(m.currentRetryDelays, currentRetryDelay)
 
 	index := m.calledCount
@@ -248,4 +275,11 @@ func (m *mockBackoffSupplier) SupplyRetryDelay(currentRetryDelay time.Duration) 
 	}
 
 	return 0
+}
+
+// calls returns how often SupplyRetryDelay was called, and with which delays.
+func (m *mockBackoffSupplier) calls() (int, []time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calledCount, append([]time.Duration(nil), m.currentRetryDelays...)
 }

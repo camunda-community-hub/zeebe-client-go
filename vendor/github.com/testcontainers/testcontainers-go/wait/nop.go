@@ -5,8 +5,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 
 	"github.com/testcontainers/testcontainers-go/exec"
 )
@@ -33,6 +33,11 @@ func (ws *NopStrategy) Timeout() *time.Duration {
 	return ws.timeout
 }
 
+// String returns a human-readable description of the wait strategy.
+func (ws *NopStrategy) String() string {
+	return "custom wait condition"
+}
+
 func (ws *NopStrategy) WithStartupTimeout(timeout time.Duration) *NopStrategy {
 	ws.timeout = &timeout
 	return ws
@@ -44,24 +49,27 @@ func (ws *NopStrategy) WaitUntilReady(ctx context.Context, target StrategyTarget
 
 type NopStrategyTarget struct {
 	ReaderCloser   io.ReadCloser
-	ContainerState types.ContainerState
+	ContainerState container.State
 }
 
 func (st NopStrategyTarget) Host(_ context.Context) (string, error) {
 	return "", nil
 }
 
-func (st NopStrategyTarget) Inspect(_ context.Context) (*types.ContainerJSON, error) {
+func (st NopStrategyTarget) Inspect(_ context.Context) (*container.InspectResponse, error) {
 	return nil, nil
 }
 
 // Deprecated: use Inspect instead
-func (st NopStrategyTarget) Ports(_ context.Context) (nat.PortMap, error) {
+func (st NopStrategyTarget) Ports(_ context.Context) (network.PortMap, error) {
 	return nil, nil
 }
 
-func (st NopStrategyTarget) MappedPort(_ context.Context, n nat.Port) (nat.Port, error) {
-	return n, nil
+func (st NopStrategyTarget) MappedPort(_ context.Context, n string) (network.Port, error) {
+	if n == "" {
+		return network.Port{}, nil
+	}
+	return network.ParsePort(n)
 }
 
 func (st NopStrategyTarget) Logs(_ context.Context) (io.ReadCloser, error) {
@@ -72,6 +80,10 @@ func (st NopStrategyTarget) Exec(_ context.Context, _ []string, _ ...exec.Proces
 	return 0, nil, nil
 }
 
-func (st NopStrategyTarget) State(_ context.Context) (*types.ContainerState, error) {
+func (st NopStrategyTarget) State(_ context.Context) (*container.State, error) {
 	return &st.ContainerState, nil
+}
+
+func (st NopStrategyTarget) CopyFileFromContainer(context.Context, string) (io.ReadCloser, error) {
+	return st.ReaderCloser, nil
 }

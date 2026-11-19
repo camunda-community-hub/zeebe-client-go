@@ -74,6 +74,9 @@ It is designed for regular maintenance jobs such as:
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
+		if hint := connectionHint(err, usesInsecureConnection()); hint != "" {
+			fmt.Fprintln(os.Stderr, hint)
+		}
 		os.Exit(1)
 	}
 }
@@ -99,7 +102,7 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	var err error
 	var credsProvider zbc.CredentialsProvider
 
-	host, port, err := parseAddress()
+	address, host, err := gatewayAddress()
 	if err != nil {
 		return err
 	}
@@ -131,7 +134,7 @@ var initClient = func(cmd *cobra.Command, args []string) error {
 	}
 
 	client, err = zbc.NewClient(&zbc.ClientConfig{
-		GatewayAddress:      fmt.Sprintf("%s:%s", host, port),
+		GatewayAddress:      address,
 		CredentialsProvider: credsProvider,
 		UserAgent:           "zeebe-client-zbctl/" + Version,
 	})
@@ -182,6 +185,27 @@ func shouldOverwriteEnvVar(cliParam, envVar string) bool {
 	cliParameterSet := rootCmd.Flags().Changed(cliParam)
 	_, exists := os.LookupEnv(envVar)
 	return cliParameterSet || !exists
+}
+
+// gatewayAddress returns the gateway address to dial and its host part. The address is
+// joined with net.JoinHostPort so IPv6 hosts keep their brackets. A host that is already
+// bracketed (e.g. "[::1]" from --host, ZEEBE_HOST or a port-less --address) is unwrapped
+// first so it is not double-bracketed.
+func gatewayAddress() (address string, host string, err error) {
+	host, port, err := parseAddress()
+	if err != nil {
+		return "", "", err
+	}
+	host = stripIPv6Brackets(host)
+	return net.JoinHostPort(host, port), host, nil
+}
+
+// stripIPv6Brackets removes one surrounding pair of square brackets from host, if present.
+func stripIPv6Brackets(host string) string {
+	if len(host) >= 2 && host[0] == '[' && host[len(host)-1] == ']' {
+		return host[1 : len(host)-1]
+	}
+	return host
 }
 
 func parseAddress() (host string, port string, err error) {

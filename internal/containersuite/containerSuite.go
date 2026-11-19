@@ -25,7 +25,6 @@ import (
 	"github.com/camunda-community-hub/zeebe-client-go/v8/internal/utils"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/pb"
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -45,19 +44,14 @@ func (s zeebeWaitStrategy) WaitUntilReady(ctx context.Context, target wait.Strat
 		return err
 	}
 
-	zeebePort, err := nat.NewPort("", "26500")
-	if err != nil {
-		return err
-	}
-
-	mappedPort, err := target.MappedPort(ctx, zeebePort)
+	mappedPort, err := target.MappedPort(ctx, "26500")
 	if err != nil {
 		return err
 	}
 
 	zbClient, err := zbc.NewClient(&zbc.ClientConfig{
 		UsePlaintextConnection: true,
-		GatewayAddress:         fmt.Sprintf("%s:%d", host, mappedPort.Int()),
+		GatewayAddress:         fmt.Sprintf("%s:%d", host, mappedPort.Num()),
 	})
 	if err != nil {
 		return err
@@ -231,15 +225,15 @@ func (s *ContainerSuite) SetupSuite() {
 		s.T().Fatal(err)
 	}
 
-	s.GatewayAddress = fmt.Sprintf("%s:%d", host, port.Int())
+	s.GatewayAddress = fmt.Sprintf("%s:%d", host, port.Num())
 	s.GatewayHost = host
-	s.GatewayPort = port.Int()
+	s.GatewayPort = int(port.Num())
 
 	port, err = s.container.MappedPort(ctx, "9600")
 	if err != nil {
 		s.T().Fatal(err)
 	}
-	s.MonitoringAddress = fmt.Sprintf("%s:%d", host, port.Int())
+	s.MonitoringAddress = fmt.Sprintf("%s:%d", host, port.Num())
 
 	s.logConsumer = testLogConsumer{func(ignored string) {}}
 	s.container.FollowOutput(&s.logConsumer)

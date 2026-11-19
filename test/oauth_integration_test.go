@@ -25,19 +25,15 @@ import (
 	"time"
 
 	"github.com/camunda-community-hub/zeebe-client-go/v8/pkg/zbc"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/suite"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-var publicPort nat.Port
-var adminPort nat.Port
-
-func init() {
-	publicPort, _ = nat.NewPort("tcp", "4444")
-	adminPort, _ = nat.NewPort("tcp", "4445")
-}
+const (
+	publicPort = "4444/tcp"
+	adminPort  = "4445/tcp"
+)
 
 type oauthIntegrationTestSuite struct {
 	suite.Suite
@@ -140,7 +136,7 @@ func (s *oauthIntegrationTestSuite) ensureOAuthClientExists() {
 	s.Require().Equal(response.StatusCode, 201)
 }
 
-func (s *oauthIntegrationTestSuite) getEndpoint(port nat.Port, path string) (string, error) {
+func (s *oauthIntegrationTestSuite) getEndpoint(port string, path string) (string, error) {
 	endpoint, err := s.container.PortEndpoint(context.Background(), port, "http")
 	if err != nil {
 		return "", err

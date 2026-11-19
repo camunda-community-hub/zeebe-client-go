@@ -7,8 +7,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/go-connections/nat"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 
 	"github.com/testcontainers/testcontainers-go/exec"
 )
@@ -25,12 +25,13 @@ type StrategyTimeout interface {
 
 type StrategyTarget interface {
 	Host(context.Context) (string, error)
-	Inspect(context.Context) (*types.ContainerJSON, error)
-	Ports(ctx context.Context) (nat.PortMap, error) // Deprecated: use Inspect instead
-	MappedPort(context.Context, nat.Port) (nat.Port, error)
+	Inspect(context.Context) (*container.InspectResponse, error)
+	Ports(ctx context.Context) (network.PortMap, error) // Deprecated: use Inspect instead
+	MappedPort(context.Context, string) (network.Port, error)
 	Logs(context.Context) (io.ReadCloser, error)
 	Exec(context.Context, []string, ...exec.ProcessOption) (int, io.Reader, error)
-	State(context.Context) (*types.ContainerState, error)
+	State(context.Context) (*container.State, error)
+	CopyFileFromContainer(ctx context.Context, filePath string) (io.ReadCloser, error)
 }
 
 func checkTarget(ctx context.Context, target StrategyTarget) error {
@@ -42,13 +43,13 @@ func checkTarget(ctx context.Context, target StrategyTarget) error {
 	return checkState(state)
 }
 
-func checkState(state *types.ContainerState) error {
+func checkState(state *container.State) error {
 	switch {
 	case state.Running:
 		return nil
 	case state.OOMKilled:
 		return errors.New("container crashed with out-of-memory (OOMKilled)")
-	case state.Status == "exited":
+	case state.Status == container.StateExited:
 		return fmt.Errorf("container exited with code %d", state.ExitCode)
 	default:
 		return fmt.Errorf("unexpected container status %q", state.Status)
