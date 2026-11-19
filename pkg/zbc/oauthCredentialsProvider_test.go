@@ -445,6 +445,44 @@ func (s *oauthCredsProviderTestSuite) TestYamlCacheUsedWhenEnvNotSet() {
 	s.IsType(&oauthYamlCredentialsCache{}, provider.Cache)
 }
 
+func (s *oauthCredsProviderTestSuite) TestYamlCacheUsedWhenEnvSetToFalse() {
+	// given
+	truncateDefaultOAuthYamlCacheFile()
+	env.set(OAuthCacheDiskDisableEnvVar, "false")
+
+	config := &OAuthProviderConfig{
+		ClientID:               clientID,
+		ClientSecret:           clientSecret,
+		Audience:               audience,
+		AuthorizationServerURL: "https://example.com/oauth/token",
+	}
+
+	// when
+	provider, err := NewOAuthCredentialsProvider(config)
+
+	// then
+	s.NoError(err)
+	s.IsType(&oauthYamlCredentialsCache{}, provider.Cache)
+}
+
+func (s *oauthCredsProviderTestSuite) TestInvalidDiskCacheDisableEnvIsAnError() {
+	// given
+	env.set(OAuthCacheDiskDisableEnvVar, "yes please")
+
+	config := &OAuthProviderConfig{
+		ClientID:               clientID,
+		ClientSecret:           clientSecret,
+		Audience:               audience,
+		AuthorizationServerURL: "https://example.com/oauth/token",
+	}
+
+	// when
+	_, err := NewOAuthCredentialsProvider(config)
+
+	// then
+	s.ErrorContains(err, OAuthCacheDiskDisableEnvVar)
+}
+
 func (s *oauthCredsProviderTestSuite) TestOAuthCredentialsProviderCachesCredentials() {
 	// create fake gRPC server which returns UNAUTHENTICATED always except if we use the token `accessToken`
 	truncateDefaultOAuthYamlCacheFile()

@@ -115,6 +115,8 @@ export ZEEBE_CLIENT_DISK_CACHE_DISABLE=true
 
 This will use an in-memory credentials cache instead of writing to `~/.camunda/credentials`. Note that tokens will not survive process restarts when using this option.
 
+The value must be a boolean (`true`/`false`, `1`/`0`); any other value is reported as an error when the client is created.
+
 Given these environment variables, you can instantiate the client as follows:
 
 ```go
