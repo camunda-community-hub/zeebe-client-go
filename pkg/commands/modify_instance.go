@@ -39,9 +39,11 @@ type ModifyInstanceCommandStep2 interface {
 	TerminateElement(elementInstanceKey int64) DispatchModifyInstanceCommand
 }
 
-// ModifyInstanceActivateStep sets variables for the element activated last. Without a
-// scope, the variables are created in the scope of the activated element; with a scope,
-// in the flow scope with that element id.
+// ModifyInstanceActivateStep sets variables for the element activated last. The
+// unscoped VariablesFrom* methods pass an empty scope id, which creates the variables
+// in the global scope of the process instance (not the activated element's local
+// scope); use the VariablesFrom*InScope methods to create them in the flow scope of a
+// specific element id instead.
 type ModifyInstanceActivateStep interface {
 	DispatchModifyInstanceCommand
 
