@@ -185,13 +185,24 @@ func shouldOverwriteEnvVar(cliParam, envVar string) bool {
 }
 
 // gatewayAddress returns the gateway address to dial and its host part. The address is
-// joined with net.JoinHostPort so IPv6 hosts keep their brackets.
+// joined with net.JoinHostPort so IPv6 hosts keep their brackets. A host that is already
+// bracketed (e.g. "[::1]" from --host, ZEEBE_HOST or a port-less --address) is unwrapped
+// first so it is not double-bracketed.
 func gatewayAddress() (address string, host string, err error) {
 	host, port, err := parseAddress()
 	if err != nil {
 		return "", "", err
 	}
+	host = stripIPv6Brackets(host)
 	return net.JoinHostPort(host, port), host, nil
+}
+
+// stripIPv6Brackets removes one surrounding pair of square brackets from host, if present.
+func stripIPv6Brackets(host string) string {
+	if len(host) >= 2 && host[0] == '[' && host[len(host)-1] == ']' {
+		return host[1 : len(host)-1]
+	}
+	return host
 }
 
 func parseAddress() (host string, port string, err error) {
