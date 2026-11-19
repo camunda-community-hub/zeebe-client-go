@@ -160,6 +160,36 @@ func copyCredentialsCacheGoldenFileToTempFile() string {
 	return path
 }
 
+func (s *oauthCredsCacheTestSuite) TestInMemoryCacheGetAndUpdate() {
+	cache := NewOAuthInMemoryCredentialsCache()
+
+	err := cache.Update(wombatAudience, wombat)
+	s.NoError(err)
+	err = cache.Update(aardvarkAudience, aardvark)
+	s.NoError(err)
+
+	s.EqualValues(wombat, cache.Get(wombatAudience))
+	s.EqualValues(aardvark, cache.Get(aardvarkAudience))
+}
+
+func (s *oauthCredsCacheTestSuite) TestInMemoryCacheRefreshIsNoOp() {
+	cache := NewOAuthInMemoryCredentialsCache()
+
+	err := cache.Update(wombatAudience, wombat)
+	s.NoError(err)
+
+	err = cache.Refresh()
+	s.NoError(err)
+
+	// data should still be there after refresh
+	s.EqualValues(wombat, cache.Get(wombatAudience))
+}
+
+func (s *oauthCredsCacheTestSuite) TestInMemoryCacheGetMiss() {
+	cache := NewOAuthInMemoryCredentialsCache()
+	s.Nil(cache.Get("unknown-audience"))
+}
+
 // helper to truncate the default cache file
 func truncateDefaultOAuthYamlCacheFile() {
 	err := os.Remove(DefaultOauthYamlCachePath)

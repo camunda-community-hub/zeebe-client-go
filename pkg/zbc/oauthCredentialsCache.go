@@ -27,6 +27,7 @@ import (
 )
 
 const OAuthCachePathEnvVar = "ZEEBE_CLIENT_CONFIG_PATH"
+const OAuthCacheDiskDisableEnvVar = "ZEEBE_CLIENT_DISK_CACHE_DISABLE"
 const DefaultOAuthCacheFileDir = ".camunda"
 const DefaultOAuthCacheFile = "credentials"
 const oauthYamlCredentialsCachePerm = 0660
@@ -196,4 +197,38 @@ func ensureOAuthCachePathSegmentsExist(directory string) error {
 	}
 
 	return err
+}
+
+// oauthInMemoryCredentialsCache implements OAuthCredentialsCache without any filesystem access,
+// suitable for read-only containers. Activate by setting ZEEBE_CLIENT_DISK_CACHE_DISABLE.
+type oauthInMemoryCredentialsCache struct {
+	audiences map[string]*oauth2.Token
+	lock      sync.RWMutex
+}
+
+// NewOAuthInMemoryCredentialsCache creates a new in-memory credentials cache that never touches the filesystem.
+func NewOAuthInMemoryCredentialsCache() OAuthCredentialsCache {
+	return &oauthInMemoryCredentialsCache{
+		audiences: make(map[string]*oauth2.Token),
+	}
+}
+
+// Refresh is a no-op for the in-memory cache since there is no external source to read from.
+func (cache *oauthInMemoryCredentialsCache) Refresh() error {
+	return nil
+}
+
+// Get returns the cached credentials for the given audience or nil.
+func (cache *oauthInMemoryCredentialsCache) Get(audience string) *oauth2.Token {
+	cache.lock.RLock()
+	defer cache.lock.RUnlock()
+	return cache.audiences[audience]
+}
+
+// Update sets the credentials for the given audience in memory.
+func (cache *oauthInMemoryCredentialsCache) Update(audience string, token *oauth2.Token) error {
+	cache.lock.Lock()
+	defer cache.lock.Unlock()
+	cache.audiences[audience] = token
+	return nil
 }

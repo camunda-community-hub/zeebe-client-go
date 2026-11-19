@@ -117,7 +117,9 @@ func NewOAuthCredentialsProvider(config *OAuthProviderConfig) (*OAuthCredentials
 	if err := applyCredentialEnvOverrides(config); err != nil {
 		return nil, err
 	}
-	applyCredentialDefaults(config)
+	if err := applyCredentialDefaults(config); err != nil {
+		return nil, err
+	}
 
 	if err := validation.Validate(config.AuthorizationServerURL, is.URL); err != nil {
 		return nil, fmt.Errorf("expected to find valid authz server URL '%s': %w", config.AuthorizationServerURL, err)
@@ -237,21 +239,36 @@ func applyCredentialEnvOverrides(config *OAuthProviderConfig) error {
 	return nil
 }
 
-func applyCredentialDefaults(config *OAuthProviderConfig) {
+func applyCredentialDefaults(config *OAuthProviderConfig) error {
 	if config.AuthorizationServerURL == "" {
 		config.AuthorizationServerURL = OAuthDefaultAuthzURL
 	}
 
 	if config.Cache == nil {
-		cache, err := NewOAuthYamlCredentialsCache("")
-		if err != nil {
-			log.Printf("Failed to create OAuth YAML token cache with default path: %s", err.Error())
+		diskCacheDisabled := false
+		if value := env.get(OAuthCacheDiskDisableEnvVar); value != "" {
+			disabled, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("%s must be true or false, got '%s': %w", OAuthCacheDiskDisableEnvVar, value, err)
+			}
+			diskCacheDisabled = disabled
+		}
+
+		if diskCacheDisabled {
+			config.Cache = NewOAuthInMemoryCredentialsCache()
 		} else {
-			config.Cache = cache
+			cache, err := NewOAuthYamlCredentialsCache("")
+			if err != nil {
+				log.Printf("Failed to create OAuth YAML token cache with default path: %s", err.Error())
+			} else {
+				config.Cache = cache
+			}
 		}
 	}
 
 	if config.Timeout <= time.Duration(0) {
 		config.Timeout = OAuthDefaultRequestTimeout
 	}
+
+	return nil
 }
