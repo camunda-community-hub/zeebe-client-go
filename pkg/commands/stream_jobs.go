@@ -82,6 +82,7 @@ type StreamJobsCommand struct {
 	jitter            float64
 	onRecycle         func(reason string)
 	debugLog          func(msg string)
+	debugLogSet       bool
 }
 
 func (cmd *StreamJobsCommand) JobType(jobType string) StreamJobsCommandStep2 {
@@ -141,14 +142,18 @@ func (cmd *StreamJobsCommand) OnRecycle(onRecycle func(reason string)) StreamJob
 
 func (cmd *StreamJobsCommand) DebugLogger(logger func(msg string)) StreamJobsCommandStep3 {
 	cmd.debugLog = logger
+	cmd.debugLogSet = true
 	return cmd
 }
 
-// debugf sends a routine (debug-level) stream lifecycle message to the configured DebugLogger sink,
-// or to the standard logger when no sink was set.
+// debugf sends a routine (debug-level) stream lifecycle message to the configured DebugLogger sink.
+// When DebugLogger was never called, messages go to the standard logger; when it was called with nil,
+// they are disabled entirely.
 func (cmd *StreamJobsCommand) debugf(format string, args ...interface{}) {
-	if cmd.debugLog != nil {
-		cmd.debugLog(fmt.Sprintf(format, args...))
+	if cmd.debugLogSet {
+		if cmd.debugLog != nil {
+			cmd.debugLog(fmt.Sprintf(format, args...))
+		}
 		return
 	}
 	log.Printf(format, args...)

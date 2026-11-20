@@ -15,7 +15,10 @@
 package commands
 
 import (
+	"bufio"
 	"context"
+	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -160,6 +163,74 @@ func TestStreamJobsCommandDebugLoggerReceivesRecycleMessages(t *testing.T) {
 	require.Len(t, msgs, 1)
 	assert.Contains(t, msgs[0], "foo")
 	assert.Contains(t, msgs[0], StreamRecycleReasonLifetime)
+}
+
+func TestStreamJobsCommandDebugLoggerNilDisablesRecycleMessages(t *testing.T) {
+	client, _ := blockingStream(t)
+
+	// capture the standard logger: an explicit nil DebugLogger must NOT fall back to it
+	restore := captureStdLog()
+
+	err := NewStreamJobsCommand(client, noRetry).JobType("foo").Consumer(make(chan entities.Job, 1)).
+		DebugLogger(nil).RequestTimeout(50 * time.Millisecond).Send(context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, restore(), "DebugLogger(nil) must disable routine recycle messages, not fall back to the standard logger")
+}
+
+func TestStreamJobsCommandDebugLoggerUnsetUsesStandardLogger(t *testing.T) {
+	client, _ := blockingStream(t)
+
+	restore := captureStdLog()
+
+	err := NewStreamJobsCommand(client, noRetry).JobType("foo").Consumer(make(chan entities.Job, 1)).
+		RequestTimeout(50 * time.Millisecond).Send(context.Background())
+
+	require.NoError(t, err)
+	stdMsgs := restore()
+	require.Len(t, stdMsgs, 1, "an unset DebugLogger must keep the standard-logger default")
+	assert.Contains(t, stdMsgs[0], "foo")
+	assert.Contains(t, stdMsgs[0], StreamRecycleReasonLifetime)
+}
+
+// captureStdLog redirects the standard logger's output until the returned restore function is
+// called; restore blocks until everything written so far has been collected, then returns the lines.
+func captureStdLog() (restore func() []string) {
+	origWriter := log.Writer()
+	origFlags := log.Flags()
+	r, w, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	log.SetOutput(w)
+	log.SetFlags(0)
+
+	lines := make(chan string, 100)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			lines <- scanner.Text()
+		}
+	}()
+
+	return func() []string {
+		log.SetOutput(origWriter)
+		log.SetFlags(origFlags)
+		_ = w.Close()
+		<-done // scanner has drained every line written before the restore
+		var out []string
+		for {
+			select {
+			case line := <-lines:
+				out = append(out, line)
+			default:
+				_ = r.Close()
+				return out
+			}
+		}
+	}
 }
 
 func TestStreamJobsCommandInactivityWatchdogPausesWhileDeliveryBlocked(t *testing.T) {

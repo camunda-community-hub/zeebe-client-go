@@ -91,6 +91,7 @@ type JobWorkerBuilder struct {
 	streamInactivityTimeout time.Duration
 	streamTimeoutJitter     float64
 	streamDebugLogger       func(msg string)
+	streamDebugLoggerSet    bool
 }
 
 // JobWorkerStreamMetrics can optionally be implemented by a JobWorkerMetrics to count job stream recycles.
@@ -266,6 +267,7 @@ func (builder *JobWorkerBuilder) StreamTimeoutJitter(jitter float64) JobWorkerBu
 
 func (builder *JobWorkerBuilder) StreamDebugLogger(logger func(msg string)) JobWorkerBuilderStep3 {
 	builder.streamDebugLogger = logger
+	builder.streamDebugLoggerSet = true
 	return builder
 }
 
@@ -331,7 +333,7 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 	go poller.poll(&acquireWait)
 
 	if builder.streamEnabled {
-		streamRequest := commands.NewStreamJobsCommand(builder.gatewayClient, builder.shouldRetry).
+		streamCommand := commands.NewStreamJobsCommand(builder.gatewayClient, builder.shouldRetry).
 			JobType(builder.request.Type).
 			Consumer(jobQueue).
 			Timeout(time.Duration(builder.request.Timeout) * time.Millisecond).
@@ -340,9 +342,13 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 			WorkerName(builder.request.Worker).
 			InactivityTimeout(builder.effectiveStreamInactivityTimeout()).
 			TimeoutJitter(builder.streamTimeoutJitter).
-			OnRecycle(builder.streamRecycleCallback()).
-			DebugLogger(builder.streamDebugLogger).
-			RequestTimeout(builder.streamRequestTimeout)
+			OnRecycle(builder.streamRecycleCallback())
+		if builder.streamDebugLoggerSet {
+			// only call DebugLogger when it was explicitly set, so an unset builder keeps the
+			// command's standard-logger default while StreamDebugLogger(nil) disables the messages
+			streamCommand = streamCommand.DebugLogger(builder.streamDebugLogger)
+		}
+		streamRequest := streamCommand.RequestTimeout(builder.streamRequestTimeout)
 		streamer := jobStreamer{
 			workerFinished:  workerFinished,
 			closeSignal:     closeStreamer,
