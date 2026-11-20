@@ -217,11 +217,16 @@ func (suite *JobPollerSuite) TestShouldReportMetrics() {
 
 	metrics := mock_pb.NewMockJobWorkerMetrics(suite.ctrl)
 	suite.poller.metrics = metrics
+	polledAgain := make(chan struct{})
 	gomock.InOrder(
 		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(suite.singleJobStream(), nil),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 1),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 0),
-		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(suite.singleJobStream(), nil),
+		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(context.Context, *pb.ActivateJobsRequest, ...interface{}) (pb.Gateway_ActivateJobsClient, error) {
+				close(polledAgain)
+				return suite.singleJobStream(), nil
+			}),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 1),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 0),
 	)
@@ -231,6 +236,11 @@ func (suite *JobPollerSuite) TestShouldReportMetrics() {
 
 	// then signal job finished to poll again
 	suite.completeJob()
+	select {
+	case <-polledAgain:
+	case <-time.After(utils.DefaultTestTimeout):
+		suite.FailNow("poller did not poll again")
+	}
 }
 
 // With streaming enabled, the poller tracks its activations so the dispatcher signals their
@@ -323,4 +333,37 @@ func (suite *JobPollerSuite) consumeJob() {
 func (suite *JobPollerSuite) completeJob() {
 	suite.consumeJob()
 	suite.poller.workerFinished <- true
+}
+
+func TestJobPollerSkipsInitialActivationWhenAlreadyClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	// no ActivateJobs expectation: any call fails the test
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	closeSignal := make(chan struct{})
+	close(closeSignal)
+	poller := jobPoller{
+		client:              client,
+		request:             &pb.ActivateJobsRequest{},
+		requestTimeout:      utils.DefaultTestTimeout,
+		maxJobsActive:       DefaultJobWorkerMaxJobActive,
+		pollInterval:        DefaultJobWorkerPollInterval,
+		initialPollInterval: DefaultJobWorkerPollInterval,
+		jobQueue:            make(chan entities.Job),
+		workerFinished:      make(chan bool),
+		closeSignal:         closeSignal,
+		threshold:           1,
+		shouldRetry:         func(_ context.Context, _ error) bool { return false },
+		backoffSupplier:     NewExponentialBackoffBuilder().Build(),
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() { poller.poll(&wg); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("poller did not return after close")
+	}
 }

@@ -41,16 +41,23 @@ type jobWorkerController struct {
 	closePoller     chan struct{}
 	closeDispatcher chan struct{}
 	closeStreamer   chan struct{}
-	closeWait       *sync.WaitGroup
+	// acquireWait tracks the poller and streamer, closeWait tracks the dispatcher
+	acquireWait *sync.WaitGroup
+	closeWait   *sync.WaitGroup
 }
 
+// Close shuts the worker down without stranding activated jobs: it first stops acquiring jobs
+// (cancelling any in-flight activation or stream) and waits for the poller and streamer to exit,
+// then closes the dispatcher, which hands all jobs still queued to the handlers and waits for them.
 func (controller jobWorkerController) Close() {
 	close(controller.closePoller)
 	close(controller.closeStreamer)
+	controller.acquireWait.Wait()
 	close(controller.closeDispatcher)
 	controller.AwaitClose()
 }
 
 func (controller jobWorkerController) AwaitClose() {
+	controller.acquireWait.Wait()
 	controller.closeWait.Wait()
 }

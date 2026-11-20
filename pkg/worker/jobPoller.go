@@ -52,10 +52,27 @@ type jobPoller struct {
 	// activates no jobs. It is only set when job streaming is enabled, mirroring the Camunda Java
 	// client: streamed jobs arrive via the stream, so the backup poll should cost little when idle.
 	streamNoJobsBackoffSupplier BackoffSupplier
+
+	// ctx is cancelled when the poller is closed, aborting any in-flight ActivateJobs call.
+	ctx context.Context
 }
 
 func (poller *jobPoller) poll(closeWait *sync.WaitGroup) {
 	defer closeWait.Done()
+
+	// derive the activation context from the close signal, so that closing the worker cancels an
+	// in-flight long poll instead of letting it activate jobs nobody will handle
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	closeSignal := poller.closeSignal
+	go func() {
+		select {
+		case <-closeSignal:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	poller.ctx = ctx
 
 	// initial poll
 	poller.activateJobs()
@@ -75,6 +92,11 @@ func (poller *jobPoller) poll(closeWait *sync.WaitGroup) {
 			return
 		}
 
+		if poller.isClosed() {
+			poller.setJobsRemainingCountMetric(0)
+			return
+		}
+
 		if poller.shouldActivateJobs() {
 			poller.activateJobs()
 		}
@@ -85,14 +107,35 @@ func (poller *jobPoller) shouldActivateJobs() bool {
 	return poller.remaining <= poller.threshold
 }
 
+func (poller *jobPoller) isClosed() bool {
+	select {
+	case <-poller.closeSignal:
+		return true
+	default:
+		return false
+	}
+}
+
 func (poller *jobPoller) activateJobs() {
-	ctx, cancel := context.WithTimeout(context.Background(), poller.requestTimeout)
+	// never start an activation once closing: the cancel goroutine may not have
+	// run yet, so the context alone can still be live (e.g. Close before the
+	// initial poll)
+	if poller.isClosed() {
+		return
+	}
+	parent := poller.ctx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(parent, poller.requestTimeout)
 	defer cancel()
 
 	poller.request.MaxJobsToActivate = int32(poller.maxJobsActive - poller.remaining)
 	stream, err := poller.openStream(ctx)
 	if err != nil {
-		log.Println(err.Error())
+		if !poller.isClosed() {
+			log.Println(err.Error())
+		}
 		return
 	}
 
@@ -109,6 +152,11 @@ func (poller *jobPoller) activateJobs() {
 		if err != nil {
 			// no need to retry if the error was simply that we reached the end of the stream
 			if err == io.EOF {
+				break
+			}
+
+			// the worker is closing and the request was cancelled: stop without retrying
+			if poller.isClosed() {
 				break
 			}
 
@@ -153,7 +201,7 @@ func (poller *jobPoller) activateJobs() {
 func (poller *jobPoller) openStream(ctx context.Context) (pb.Gateway_ActivateJobsClient, error) {
 	stream, err := poller.client.ActivateJobs(ctx, poller.request)
 	if err != nil {
-		if poller.shouldRetry(ctx, err) {
+		if ctx.Err() == nil && !poller.isClosed() && poller.shouldRetry(ctx, err) {
 			return poller.openStream(ctx)
 		}
 		return nil, fmt.Errorf("worker '%s' failed to open job stream: %w", poller.request.Worker, err)

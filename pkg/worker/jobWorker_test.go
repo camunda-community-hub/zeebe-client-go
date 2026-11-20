@@ -18,7 +18,11 @@ package worker
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -298,6 +302,119 @@ func TestStreamingJobWorkerClose(t *testing.T) {
 	}
 }
 
+// Close must wait for a streaming Send that was canceled but has not returned yet: every job the
+// stream already received has to reach the handler before Close completes. The mock stream delivers
+// one job, then holds Send open after cancellation until the test releases it; Close must stay
+// blocked while Send is held, and the streamed job must be handled once Send returns.
+func TestStreamingJobWorkerCloseWaitsForCanceledStreamSend(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	stream := mock_pb.NewMockGateway_StreamActivatedJobsClient(ctrl)
+	timeout := 7 * time.Minute
+
+	streamRequest := &pb.StreamActivatedJobsRequest{
+		Type:      "foo",
+		Timeout:   int64(timeout / time.Millisecond),
+		Worker:    "fooWorker",
+		TenantIds: []string{commands.DefaultJobTenantID},
+	}
+	activateJobsRequest := &pb.ActivateJobsRequest{
+		Type:              "foo",
+		MaxJobsToActivate: DefaultJobWorkerMaxJobActive,
+		Timeout:           int64(timeout / time.Millisecond),
+		Worker:            "fooWorker",
+		RequestTimeout:    int64(utils.DefaultTestTimeout / time.Millisecond),
+		TenantIds:         []string{commands.DefaultJobTenantID},
+	}
+
+	// no polled jobs, so only the streamed job is in play; the long poll blocks until Close
+	// cancels it, so the poller exits instead of spinning on instant empty responses
+	client.EXPECT().ActivateJobs(gomock.Any(), &rpcMsg{msg: activateJobsRequest}).DoAndReturn(
+		func(ctx context.Context, _ *pb.ActivateJobsRequest, _ ...grpc.CallOption) (pb.Gateway_ActivateJobsClient, error) {
+			s := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+			s.EXPECT().Recv().DoAndReturn(func() (*pb.ActivateJobsResponse, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}).AnyTimes()
+			return s, nil
+		}).AnyTimes()
+
+	var streamCtx atomic.Value
+	jobReceived := make(chan struct{})
+	releaseSend := make(chan struct{})
+	var recvCount int32
+	stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivatedJob, error) {
+		ctx := streamCtx.Load().(context.Context)
+		if atomic.AddInt32(&recvCount, 1) == 1 {
+			// first Recv delivers the already-received job
+			close(jobReceived)
+			return &pb.ActivatedJob{Key: 1}, nil
+		}
+		// subsequent Recv blocks until Close cancels the stream, then stays open
+		// (canceled but not finished) until the test releases it
+		<-ctx.Done()
+		<-releaseSend
+		return nil, ctx.Err()
+	}).AnyTimes()
+	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().DoAndReturn(
+		func(ctx context.Context, _ *pb.StreamActivatedJobsRequest, _ ...grpc.CallOption) (pb.Gateway_StreamActivatedJobsClient, error) {
+			streamCtx.Store(ctx)
+			return stream, nil
+		})
+
+	retryPred := func(ctx context.Context, err error) bool { return false }
+	handled := make(chan int64, 1)
+	worker := NewJobWorkerBuilder(client, nil, retryPred).
+		JobType("foo").
+		Handler(func(_ JobClient, job entities.Job) {
+			handled <- job.Key
+		}).
+		Timeout(timeout).
+		RequestTimeout(utils.DefaultTestTimeout).
+		Name("fooWorker").
+		StreamEnabled(true).
+		Open()
+
+	// the stream is open and has delivered its job to the consumer before we close
+	select {
+	case <-jobReceived:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("stream did not deliver its job before timeout")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		worker.Close()
+		close(closed)
+	}()
+
+	// Close cancels the stream, but Send is still held open: Close must not complete
+	select {
+	case <-closed:
+		t.Fatal("Close completed while the canceled streaming Send was still open")
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// let the canceled Send return; the already-received job must be handled before Close completes
+	close(releaseSend)
+	select {
+	case key := <-handled:
+		if key != 1 {
+			t.Fatalf("handled wrong job: got %d, want 1", key)
+		}
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("streamed job was not handled after Send returned")
+	}
+
+	select {
+	case <-closed:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("Close did not complete after the streaming Send returned")
+	}
+}
+
 func TestJobWorkerClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -369,14 +486,17 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 
 	// the streaming RPC stays open for the whole test without delivering jobs, until
 	// worker.Close() cancels the RPC context
-	streamCtx, streamCancel := context.WithCancel(context.Background())
-	defer streamCancel()
-	stream.EXPECT().Context().Return(streamCtx).AnyTimes()
+	var streamCtx atomic.Value
 	stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivatedJob, error) {
-		<-stream.Context().Done()
-		return nil, stream.Context().Err()
+		ctx := streamCtx.Load().(context.Context)
+		<-ctx.Done()
+		return nil, ctx.Err()
 	}).AnyTimes()
-	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().Return(stream, nil)
+	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().DoAndReturn(
+		func(ctx context.Context, _ *pb.StreamActivatedJobsRequest, _ ...grpc.CallOption) (pb.Gateway_StreamActivatedJobsClient, error) {
+			streamCtx.Store(ctx)
+			return stream, nil
+		})
 
 	batch := func(keys ...int64) *mock_pb.MockGateway_ActivateJobsClient {
 		jobs := make([]*pb.ActivatedJob, len(keys))
@@ -472,4 +592,66 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 	}
 	release <- struct{}{}
 	release <- struct{}{}
+}
+
+// Jobs activated by an in-flight poll while the worker closes must be handed to the handler,
+// never stranded until their timeout; Close must also cancel the in-flight long poll.
+func TestJobWorkerCloseHandlesJobsActivatedDuringClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	polling := make(chan struct{})
+	var once sync.Once
+	client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, _ *pb.ActivateJobsRequest, _ ...grpc.CallOption) (pb.Gateway_ActivateJobsClient, error) {
+			stream := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+			delivered := false
+			stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivateJobsResponse, error) {
+				once.Do(func() { close(polling) })
+				// the long poll only returns once Close cancels it; the gateway answers with jobs
+				// it activated just before the cancellation reached it
+				<-ctx.Done()
+				if !delivered {
+					delivered = true
+					return &pb.ActivateJobsResponse{Jobs: []*pb.ActivatedJob{{Key: 1}, {Key: 2}, {Key: 3}}}, nil
+				}
+				return nil, status.Error(codes.Canceled, ctx.Err().Error())
+			}).AnyTimes()
+			return stream, nil
+		}).AnyTimes()
+
+	var mu sync.Mutex
+	handled := map[int64]bool{}
+	worker := NewJobWorkerBuilder(client, nil, func(context.Context, error) bool { return false }).
+		JobType("foo").
+		Handler(func(_ JobClient, job entities.Job) {
+			mu.Lock()
+			handled[job.Key] = true
+			mu.Unlock()
+		}).
+		RequestTimeout(time.Hour).
+		StreamEnabled(false).
+		Open()
+
+	select {
+	case <-polling:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("worker did not start polling")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		worker.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("Close did not cancel the in-flight poll")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, map[int64]bool{1: true, 2: true, 3: true}, handled, "all activated jobs must be handled on close")
 }
