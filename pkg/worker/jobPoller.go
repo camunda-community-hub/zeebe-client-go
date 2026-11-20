@@ -48,6 +48,10 @@ type jobPoller struct {
 	shouldRetry func(context.Context, error) bool
 
 	backoffSupplier BackoffSupplier
+	// streamNoJobsBackoffSupplier, if set, backs off the poll interval whenever a poll succeeds but
+	// activates no jobs. It is only set when job streaming is enabled, mirroring the Camunda Java
+	// client: streamed jobs arrive via the stream, so the backup poll should cost little when idle.
+	streamNoJobsBackoffSupplier BackoffSupplier
 }
 
 func (poller *jobPoller) poll(closeWait *sync.WaitGroup) {
@@ -92,6 +96,14 @@ func (poller *jobPoller) activateJobs() {
 		return
 	}
 
+	activated := 0
+	failed := false
+	defer func() {
+		if !failed {
+			poller.onPollSuccess(activated)
+		}
+	}()
+
 	for {
 		response, err := stream.Recv()
 		if err != nil {
@@ -114,6 +126,7 @@ func (poller *jobPoller) activateJobs() {
 				log.Printf("Failed to activate jobs for worker '%s': %v\n", poller.request.Worker, err)
 			}
 
+			failed = true
 			switch status.Code(err) {
 			case codes.ResourceExhausted, codes.Unavailable, codes.Internal:
 				poller.backoff()
@@ -122,6 +135,7 @@ func (poller *jobPoller) activateJobs() {
 			break
 		}
 
+		activated += len(response.Jobs)
 		poller.remaining += len(response.Jobs)
 		poller.setJobsRemainingCountMetric(poller.remaining)
 		for _, job := range response.Jobs {
@@ -154,4 +168,18 @@ func (poller *jobPoller) setJobsRemainingCountMetric(count int) {
 func (poller *jobPoller) backoff() {
 	prevInterval := poller.pollInterval
 	poller.pollInterval = poller.backoffSupplier.SupplyRetryDelay(prevInterval)
+}
+
+// onPollSuccess adjusts the poll interval after a poll completed without error. With streaming
+// enabled, an empty poll backs off the interval (exponentially, from the current interval), while a
+// poll that activated jobs resets it to the configured interval so backlogs drain at full speed.
+func (poller *jobPoller) onPollSuccess(activated int) {
+	if poller.streamNoJobsBackoffSupplier == nil {
+		return
+	}
+	if activated == 0 {
+		poller.pollInterval = poller.streamNoJobsBackoffSupplier.SupplyRetryDelay(poller.pollInterval)
+	} else {
+		poller.pollInterval = poller.initialPollInterval
+	}
 }

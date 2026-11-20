@@ -39,6 +39,11 @@ const (
 
 var defaultBackoffSupplier = NewExponentialBackoffBuilder().Build()
 
+// DefaultStreamNoJobsBackoffSupplier backs off the backup poll of a streaming worker while polls
+// return no jobs: exponential from the current poll interval, factor 1.6, jitter 0.1, capped at
+// 1 minute (Camunda Java client defaults).
+var DefaultStreamNoJobsBackoffSupplier = NewExponentialBackoffBuilder().MaxDelay(time.Minute).Build()
+
 type JobWorkerBuilder struct {
 	gatewayClient  pb.GatewayClient
 	jobClient      JobClient
@@ -54,6 +59,7 @@ type JobWorkerBuilder struct {
 	shouldRetry          func(context.Context, error) bool
 	backoffSupplier      BackoffSupplier
 	streamEnabled        bool
+	streamNoJobsBackoff  BackoffSupplier
 	streamRequestTimeout time.Duration
 }
 
@@ -94,6 +100,10 @@ type JobWorkerBuilderStep3 interface {
 	BackoffSupplier(supplier BackoffSupplier) JobWorkerBuilderStep3
 	// StreamEnabled Enables the job worker to stream jobs. It will still poll for older jobs, but streaming is favored.
 	StreamEnabled(bool) JobWorkerBuilderStep3
+	// StreamNoJobsBackoffSupplier If streaming is enabled, backs off the backup poll with this supplier
+	// while polls return no jobs; a poll that activates jobs resets the interval to PollInterval.
+	// Defaults to DefaultStreamNoJobsBackoffSupplier. Pass nil to disable (poll at a fixed interval).
+	StreamNoJobsBackoffSupplier(BackoffSupplier) JobWorkerBuilderStep3
 	// StreamRequestTimeout If streaming is enabled, this sets the timeout on the underlying job stream. It's useful to set a few hours to load-balance your streams over time.
 	StreamRequestTimeout(time.Duration) JobWorkerBuilderStep3
 	// Open the job worker and start polling and handling jobs
@@ -183,6 +193,11 @@ func (builder *JobWorkerBuilder) StreamEnabled(streamEnabled bool) JobWorkerBuil
 	return builder
 }
 
+func (builder *JobWorkerBuilder) StreamNoJobsBackoffSupplier(supplier BackoffSupplier) JobWorkerBuilderStep3 {
+	builder.streamNoJobsBackoff = supplier
+	return builder
+}
+
 func (builder *JobWorkerBuilder) StreamRequestTimeout(requestTimeout time.Duration) JobWorkerBuilderStep3 {
 	builder.streamRequestTimeout = requestTimeout
 	return builder
@@ -221,6 +236,9 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 		metrics:         builder.metrics,
 		shouldRetry:     builder.shouldRetry,
 		backoffSupplier: builder.backoffSupplier,
+	}
+	if builder.streamEnabled {
+		poller.streamNoJobsBackoffSupplier = builder.streamNoJobsBackoff
 	}
 
 	dispatcher := jobDispatcher{
@@ -285,6 +303,8 @@ func NewJobWorkerBuilder(gatewayClient pb.GatewayClient, jobClient JobClient, re
 		requestTimeout:  DefaultRequestTimeout + RequestTimeoutOffset,
 		shouldRetry:     retryPred,
 		backoffSupplier: defaultBackoffSupplier,
+
+		streamNoJobsBackoff: DefaultStreamNoJobsBackoffSupplier,
 	}
 
 }
