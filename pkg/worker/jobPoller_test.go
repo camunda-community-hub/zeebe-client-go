@@ -334,3 +334,36 @@ func (suite *JobPollerSuite) completeJob() {
 	suite.consumeJob()
 	suite.poller.workerFinished <- true
 }
+
+func TestJobPollerSkipsInitialActivationWhenAlreadyClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	// no ActivateJobs expectation: any call fails the test
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	closeSignal := make(chan struct{})
+	close(closeSignal)
+	poller := jobPoller{
+		client:              client,
+		request:             &pb.ActivateJobsRequest{},
+		requestTimeout:      utils.DefaultTestTimeout,
+		maxJobsActive:       DefaultJobWorkerMaxJobActive,
+		pollInterval:        DefaultJobWorkerPollInterval,
+		initialPollInterval: DefaultJobWorkerPollInterval,
+		jobQueue:            make(chan entities.Job),
+		workerFinished:      make(chan bool),
+		closeSignal:         closeSignal,
+		threshold:           1,
+		shouldRetry:         func(_ context.Context, _ error) bool { return false },
+		backoffSupplier:     NewExponentialBackoffBuilder().Build(),
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	done := make(chan struct{})
+	go func() { poller.poll(&wg); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("poller did not return after close")
+	}
+}

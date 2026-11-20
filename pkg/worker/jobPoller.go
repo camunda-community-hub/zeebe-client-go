@@ -117,6 +117,12 @@ func (poller *jobPoller) isClosed() bool {
 }
 
 func (poller *jobPoller) activateJobs() {
+	// never start an activation once closing: the cancel goroutine may not have
+	// run yet, so the context alone can still be live (e.g. Close before the
+	// initial poll)
+	if poller.isClosed() {
+		return
+	}
 	parent := poller.ctx
 	if parent == nil {
 		parent = context.Background()
@@ -195,7 +201,7 @@ func (poller *jobPoller) activateJobs() {
 func (poller *jobPoller) openStream(ctx context.Context) (pb.Gateway_ActivateJobsClient, error) {
 	stream, err := poller.client.ActivateJobs(ctx, poller.request)
 	if err != nil {
-		if ctx.Err() == nil && poller.shouldRetry(ctx, err) {
+		if ctx.Err() == nil && !poller.isClosed() && poller.shouldRetry(ctx, err) {
 			return poller.openStream(ctx)
 		}
 		return nil, fmt.Errorf("worker '%s' failed to open job stream: %w", poller.request.Worker, err)
