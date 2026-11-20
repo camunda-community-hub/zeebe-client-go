@@ -172,7 +172,7 @@ func JitterDuration(d time.Duration, jitter float64) time.Duration {
 	if spread <= 0 {
 		return d
 	}
-	return d - time.Duration(rand.Int63n(int64(spread)+1))
+	return d - time.Duration(rand.Int63n(int64(spread)+1)) //nolint:gosec // G404: jitter needs no secure random source
 }
 
 // Send opens the stream and pushes received jobs to the consumer until the stream ends. When the stream
