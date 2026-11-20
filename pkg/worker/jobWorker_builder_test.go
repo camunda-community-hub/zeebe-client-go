@@ -131,3 +131,26 @@ func TestJobWorkerBuilder_StreamRequestTimeout(t *testing.T) {
 	builder.StreamRequestTimeout(requestTimeout)
 	assert.Equal(t, requestTimeout, builder.streamRequestTimeout)
 }
+
+func TestJobWorkerBuilder_StreamLifecycleDefaults(t *testing.T) {
+	builder := NewJobWorkerBuilder(nil, nil, nil).(*JobWorkerBuilder)
+	assert.Equal(t, 8*time.Hour, builder.streamRequestTimeout)
+	assert.Equal(t, 10*time.Minute, builder.streamInactivityTimeout)
+	assert.Equal(t, 0.1, builder.streamTimeoutJitter)
+	assert.Equal(t, 10*time.Minute, builder.effectiveStreamInactivityTimeout())
+}
+
+func TestJobWorkerBuilder_StreamInactivityTimeout(t *testing.T) {
+	builder := NewJobWorkerBuilder(nil, nil, nil).(*JobWorkerBuilder)
+	builder.StreamInactivityTimeout(time.Minute).StreamTimeoutJitter(0)
+	assert.Equal(t, time.Minute, builder.effectiveStreamInactivityTimeout())
+	assert.Equal(t, 0.0, builder.streamTimeoutJitter)
+
+	// must be less than the request timeout, otherwise disabled
+	builder.StreamRequestTimeout(time.Minute)
+	assert.Equal(t, time.Duration(0), builder.effectiveStreamInactivityTimeout())
+
+	// disabling the request timeout keeps the watchdog
+	builder.StreamRequestTimeout(0)
+	assert.Equal(t, time.Minute, builder.effectiveStreamInactivityTimeout())
+}
