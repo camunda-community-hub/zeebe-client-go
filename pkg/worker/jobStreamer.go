@@ -82,7 +82,7 @@ func (streamer *jobStreamer) stream(closeWait *sync.WaitGroup) {
 
 			// wait for the in-flight stream to finish, so every job it already received is pushed
 			// to the job queue before the dispatcher is closed
-			_ = <-streamClosed
+			<-streamClosed //nolint:errcheck // the stream outcome is irrelevant once closing
 			return
 		}
 	}
