@@ -217,11 +217,16 @@ func (suite *JobPollerSuite) TestShouldReportMetrics() {
 
 	metrics := mock_pb.NewMockJobWorkerMetrics(suite.ctrl)
 	suite.poller.metrics = metrics
+	polledAgain := make(chan struct{})
 	gomock.InOrder(
 		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(suite.singleJobStream(), nil),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 1),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 0),
-		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(suite.singleJobStream(), nil),
+		suite.client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(context.Context, *pb.ActivateJobsRequest, ...interface{}) (pb.Gateway_ActivateJobsClient, error) {
+				close(polledAgain)
+				return suite.singleJobStream(), nil
+			}),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 1),
 		metrics.EXPECT().SetJobsRemainingCount(gomock.Any(), 0),
 	)
@@ -231,6 +236,11 @@ func (suite *JobPollerSuite) TestShouldReportMetrics() {
 
 	// then signal job finished to poll again
 	suite.completeJob()
+	select {
+	case <-polledAgain:
+	case <-time.After(utils.DefaultTestTimeout):
+		suite.FailNow("poller did not poll again")
+	}
 }
 
 // With streaming enabled, the poller tracks its activations so the dispatcher signals their

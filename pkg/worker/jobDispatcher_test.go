@@ -203,3 +203,37 @@ func (stub *jobClientStub) NewThrowErrorCommand() commands.ThrowErrorCommandStep
 func (jobClientStub) NewFailJobCommand() commands.FailJobCommandStep1 {
 	panic("implement me")
 }
+
+func TestJobDispatcherDrainsQueueOnClose(t *testing.T) {
+	queue := make(chan entities.Job, 3)
+	for i := int64(1); i <= 3; i++ {
+		queue <- entities.Job{ActivatedJob: &pb.ActivatedJob{Key: i}}
+	}
+	dispatcher := jobDispatcher{
+		jobQueue:       queue,
+		workerFinished: make(chan bool, 3),
+		closeSignal:    make(chan struct{}),
+	}
+	close(dispatcher.closeSignal)
+
+	var mu sync.Mutex
+	var handled []int64
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go dispatcher.run(&jobClientStub{}, func(_ JobClient, job entities.Job) {
+		mu.Lock()
+		handled = append(handled, job.Key)
+		mu.Unlock()
+	}, 1, &wg)
+
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("dispatcher did not close")
+	}
+	if len(handled) != 3 {
+		t.Fatalf("expected all 3 queued jobs to be handled on close, got %v", handled)
+	}
+}

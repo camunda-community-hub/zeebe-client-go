@@ -75,10 +75,14 @@ func (streamer *jobStreamer) stream(closeWait *sync.WaitGroup) {
 			streamer.close()
 
 			streamCancel()
-			if timer != nil {
-				timer.Stop()
+			if timer != nil && timer.Stop() {
+				// the scheduled reopen never ran, so nothing will report on streamClosed
+				return
 			}
 
+			// wait for the in-flight stream to finish, so every job it already received is pushed
+			// to the job queue before the dispatcher is closed
+			<-streamClosed
 			return
 		}
 	}

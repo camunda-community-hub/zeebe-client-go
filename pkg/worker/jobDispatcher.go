@@ -64,20 +64,27 @@ func (dispatcher *jobDispatcher) run(client JobClient, handler JobHandler, concu
 		}()
 	}
 
-loop:
 	for {
 		// wait for job or close signal
 		select {
 		case job := <-dispatcher.jobQueue:
-			select {
-			// wait for worker or close signal
-			case worker := <-workerQueue:
-				worker <- job
-			case <-dispatcher.closeSignal:
-				break loop
-			}
+			// once a job was taken from the queue it is always handed to a handler, even if the
+			// dispatcher is closing, so it is never stranded until its timeout
+			worker := <-workerQueue
+			worker <- job
 		case <-dispatcher.closeSignal:
-			break loop
+			// The poller and streamer stopped before the dispatcher is closed, so no new jobs
+			// arrive. Drain the jobs that were already activated and queued, and hand them to the
+			// handlers instead of dropping them.
+			for {
+				select {
+				case job := <-dispatcher.jobQueue:
+					worker := <-workerQueue
+					worker <- job
+				default:
+					return
+				}
+			}
 		}
 	}
 }

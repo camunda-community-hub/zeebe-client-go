@@ -251,7 +251,12 @@ func (m *mockStreamJobsCommand) Send(ctx context.Context) error {
 	sendChan := m.sendChan
 	m.mu.Unlock()
 
-	sendChan <- call
+	select {
+	case sendChan <- call:
+	case <-ctx.Done():
+		// like a real stream, a cancelled context ends the call
+		return ctx.Err()
+	}
 	return m.err
 }
 

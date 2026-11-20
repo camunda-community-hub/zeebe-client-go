@@ -18,7 +18,11 @@ package worker
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"io"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -369,14 +373,17 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 
 	// the streaming RPC stays open for the whole test without delivering jobs, until
 	// worker.Close() cancels the RPC context
-	streamCtx, streamCancel := context.WithCancel(context.Background())
-	defer streamCancel()
-	stream.EXPECT().Context().Return(streamCtx).AnyTimes()
+	var streamCtx atomic.Value
 	stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivatedJob, error) {
-		<-stream.Context().Done()
-		return nil, stream.Context().Err()
+		ctx := streamCtx.Load().(context.Context)
+		<-ctx.Done()
+		return nil, ctx.Err()
 	}).AnyTimes()
-	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().Return(stream, nil)
+	client.EXPECT().StreamActivatedJobs(gomock.Any(), &rpcMsg{msg: streamRequest}).AnyTimes().DoAndReturn(
+		func(ctx context.Context, _ *pb.StreamActivatedJobsRequest, _ ...grpc.CallOption) (pb.Gateway_StreamActivatedJobsClient, error) {
+			streamCtx.Store(ctx)
+			return stream, nil
+		})
 
 	batch := func(keys ...int64) *mock_pb.MockGateway_ActivateJobsClient {
 		jobs := make([]*pb.ActivatedJob, len(keys))
@@ -472,4 +479,66 @@ func TestJobWorkerStreamEnabledPollsAgainAfterEachPolledBatch(t *testing.T) {
 	}
 	release <- struct{}{}
 	release <- struct{}{}
+}
+
+// Jobs activated by an in-flight poll while the worker closes must be handed to the handler,
+// never stranded until their timeout; Close must also cancel the in-flight long poll.
+func TestJobWorkerCloseHandlesJobsActivatedDuringClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	polling := make(chan struct{})
+	var once sync.Once
+	client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(ctx context.Context, _ *pb.ActivateJobsRequest, _ ...grpc.CallOption) (pb.Gateway_ActivateJobsClient, error) {
+			stream := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+			delivered := false
+			stream.EXPECT().Recv().DoAndReturn(func() (*pb.ActivateJobsResponse, error) {
+				once.Do(func() { close(polling) })
+				// the long poll only returns once Close cancels it; the gateway answers with jobs
+				// it activated just before the cancellation reached it
+				<-ctx.Done()
+				if !delivered {
+					delivered = true
+					return &pb.ActivateJobsResponse{Jobs: []*pb.ActivatedJob{{Key: 1}, {Key: 2}, {Key: 3}}}, nil
+				}
+				return nil, status.Error(codes.Canceled, ctx.Err().Error())
+			}).AnyTimes()
+			return stream, nil
+		}).AnyTimes()
+
+	var mu sync.Mutex
+	handled := map[int64]bool{}
+	worker := NewJobWorkerBuilder(client, nil, func(context.Context, error) bool { return false }).
+		JobType("foo").
+		Handler(func(_ JobClient, job entities.Job) {
+			mu.Lock()
+			handled[job.Key] = true
+			mu.Unlock()
+		}).
+		RequestTimeout(time.Hour).
+		StreamEnabled(false).
+		Open()
+
+	select {
+	case <-polling:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("worker did not start polling")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		worker.Close()
+		close(closed)
+	}()
+	select {
+	case <-closed:
+	case <-time.After(utils.DefaultTestTimeout):
+		t.Fatal("Close did not cancel the in-flight poll")
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, map[int64]bool{1: true, 2: true, 3: true}, handled, "all activated jobs must be handled on close")
 }

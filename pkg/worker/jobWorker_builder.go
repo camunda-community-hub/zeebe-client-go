@@ -226,8 +226,9 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 	closePoller := make(chan struct{})
 	closeDispatcher := make(chan struct{})
 	closeStreamer := make(chan struct{})
-	var closeWait sync.WaitGroup
-	closeWait.Add(3)
+	var closeWait, acquireWait sync.WaitGroup
+	closeWait.Add(1)
+	acquireWait.Add(2)
 
 	// With streaming, the dispatcher also runs streamed jobs; only polled jobs may count down the
 	// poller's remaining jobs, so track which jobs the poller activated.
@@ -266,7 +267,7 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 	}
 
 	go dispatcher.run(builder.jobClient, builder.handler, builder.concurrency, &closeWait)
-	go poller.poll(&closeWait)
+	go poller.poll(&acquireWait)
 
 	if builder.streamEnabled {
 		streamRequest := commands.NewStreamJobsCommand(builder.gatewayClient, builder.shouldRetry).
@@ -285,16 +286,17 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 			retryDelay:      0,
 		}
 
-		go streamer.stream(&closeWait)
+		go streamer.stream(&acquireWait)
 	} else {
 		// simulate streamer is already closed
-		closeWait.Done()
+		acquireWait.Done()
 	}
 
 	return jobWorkerController{
 		closePoller:     closePoller,
 		closeDispatcher: closeDispatcher,
 		closeStreamer:   closeStreamer,
+		acquireWait:     &acquireWait,
 		closeWait:       &closeWait,
 	}
 }
