@@ -39,10 +39,27 @@ const (
 
 var defaultBackoffSupplier = NewExponentialBackoffBuilder().Build()
 
+// maxStreamNoJobsPollDelay caps the backup poll interval of a streaming worker (Camunda Java
+// client default).
+const maxStreamNoJobsPollDelay = time.Minute
+
+var defaultStreamNoJobsBackoff = NewExponentialBackoffBuilder().MaxDelay(maxStreamNoJobsPollDelay).Build()
+
 // DefaultStreamNoJobsBackoffSupplier backs off the backup poll of a streaming worker while polls
 // return no jobs: exponential from the current poll interval, factor 1.6, jitter 0.1, capped at
-// 1 minute (Camunda Java client defaults).
-var DefaultStreamNoJobsBackoffSupplier = NewExponentialBackoffBuilder().MaxDelay(time.Minute).Build()
+// 1 minute (Camunda Java client defaults). The jitter is applied before the cap, so the returned
+// delay never exceeds 1 minute.
+var DefaultStreamNoJobsBackoffSupplier = backoffSupplierFunc(func(currentRetryDelay time.Duration) time.Duration {
+	delay := defaultStreamNoJobsBackoff.SupplyRetryDelay(currentRetryDelay)
+	return min(delay, maxStreamNoJobsPollDelay)
+})
+
+// backoffSupplierFunc adapts a function to the BackoffSupplier interface.
+type backoffSupplierFunc func(currentRetryDelay time.Duration) time.Duration
+
+func (f backoffSupplierFunc) SupplyRetryDelay(currentRetryDelay time.Duration) time.Duration {
+	return f(currentRetryDelay)
+}
 
 type JobWorkerBuilder struct {
 	gatewayClient  pb.GatewayClient

@@ -117,6 +117,9 @@ func (poller *jobPoller) activateJobs() {
 				stream, err = poller.openStream(ctx)
 				if err != nil {
 					log.Printf("Failed to reopen job polling stream: %v\n", err)
+					// the poll did not complete successfully, so it must not adjust the
+					// poll interval as a success (empty-poll backoff or reset) would.
+					failed = true
 					break
 				}
 				continue

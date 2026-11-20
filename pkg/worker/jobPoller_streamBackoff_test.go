@@ -111,8 +111,41 @@ func TestStreamNoJobsBackoffDefaultJitterWithinBounds(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		poller.activateJobs()
 	}
-	require.LessOrEqual(t, poller.pollInterval, 66*time.Second)
+	require.LessOrEqual(t, poller.pollInterval, 60*time.Second)
 	require.GreaterOrEqual(t, poller.pollInterval, 54*time.Second)
+}
+
+func TestStreamNoJobsBackoffNotAppliedWhenReopenFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	// First stream: Recv fails with a retryable error, so the poller tries to reopen the stream.
+	failing := mock_pb.NewMockGateway_ActivateJobsClient(ctrl)
+	failing.EXPECT().Recv().Return(nil, status.Error(codes.Unauthenticated, "token expired"))
+	client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(failing, nil)
+	// The reopen fails: the poll must be marked failed, so the empty-poll backoff must not run.
+	client.EXPECT().ActivateJobs(gomock.Any(), gomock.Any()).Return(nil, status.Error(codes.Unauthenticated, "still unauthorized")).AnyTimes()
+
+	// Retryable on the Recv error so the reopen is attempted; not retryable on the reopen error
+	// itself, so openStream does not recurse forever.
+	retries := 0
+	poller := &jobPoller{
+		client:              client,
+		request:             &pb.ActivateJobsRequest{},
+		requestTimeout:      time.Second,
+		maxJobsActive:       1000,
+		pollInterval:        100 * time.Millisecond,
+		initialPollInterval: 100 * time.Millisecond,
+		jobQueue:            make(chan entities.Job, 1000),
+		shouldRetry: func(context.Context, error) bool {
+			retries++
+			return retries == 1
+		},
+		backoffSupplier:             NewExponentialBackoffBuilder().Random(rand.New(rand.NewSource(1))).Build(),
+		streamNoJobsBackoffSupplier: noJitterStreamBackoff(),
+	}
+
+	poller.activateJobs()
+	require.Equal(t, 100*time.Millisecond, poller.pollInterval)
 }
 
 func TestNoStreamBackoffWhenDisabled(t *testing.T) {
@@ -134,7 +167,8 @@ func TestErrorBackoffUnaffectedByStreamBackoff(t *testing.T) {
 
 func TestBuilderWiresStreamNoJobsBackoff(t *testing.T) {
 	b := NewJobWorkerBuilder(nil, nil, nil).(*JobWorkerBuilder)
-	require.Equal(t, DefaultStreamNoJobsBackoffSupplier, b.streamNoJobsBackoff)
+	require.NotNil(t, b.streamNoJobsBackoff)
+	require.Equal(t, 60*time.Second, b.streamNoJobsBackoff.SupplyRetryDelay(60*time.Second))
 	b.StreamNoJobsBackoffSupplier(nil)
 	require.Nil(t, b.streamNoJobsBackoff)
 }
