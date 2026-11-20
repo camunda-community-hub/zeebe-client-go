@@ -187,6 +187,50 @@ func (suite *JobDispatcherSuite) completeJob(syncHandler bool) {
 	<-suite.dispatcher.workerFinished
 }
 
+// A worker that advertised itself in workerQueue but has not yet received its job must still run
+// the handler when the dispatcher drains and closes. With a buffered work channel the dispatcher's
+// send completes before the worker receives, the deferred close(closeWorkers) can then win the
+// worker's next select, and the job is stranded unhandled. The unbuffered work channel makes the
+// handoff synchronous, so the drain cannot return before the worker has received the job.
+func TestJobDispatcherDrainCannotOvertakeWorkerReceipt(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		queue := make(chan entities.Job, 1)
+		queue <- entities.Job{ActivatedJob: &pb.ActivatedJob{Key: int64(i)}}
+		dispatcher := jobDispatcher{
+			jobQueue:       queue,
+			workerFinished: make(chan bool, 1),
+			closeSignal:    make(chan struct{}),
+		}
+		// already closed: the dispatcher only runs its drain path, so the handoff races the
+		// deferred close(closeWorkers) as tightly as possible
+		close(dispatcher.closeSignal)
+
+		handled := make(chan int64, 1)
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go dispatcher.run(&jobClientStub{}, func(_ JobClient, job entities.Job) {
+			handled <- job.Key
+		}, 1, &wg)
+
+		done := make(chan struct{})
+		go func() { wg.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(utils.DefaultTestTimeout):
+			t.Fatal("dispatcher did not close")
+		}
+
+		select {
+		case key := <-handled:
+			if key != int64(i) {
+				t.Fatalf("handled wrong job: got %d, want %d", key, i)
+			}
+		default:
+			t.Fatalf("iteration %d: shutdown overtook the handoff; job was stranded", i)
+		}
+	}
+}
+
 type jobClientStub struct {
 	invoked bool
 }

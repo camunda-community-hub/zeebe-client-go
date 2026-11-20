@@ -47,7 +47,9 @@ func (dispatcher *jobDispatcher) run(client JobClient, handler JobHandler, concu
 		go func() {
 			defer workersClosed.Done()
 
-			work := make(chan entities.Job, 1)
+			// Unbuffered: the handoff only completes once the worker has received the job, so
+			// shutdown can never overtake a job the dispatcher already handed off.
+			work := make(chan entities.Job)
 		workerLoop:
 			for {
 				workerQueue <- work
