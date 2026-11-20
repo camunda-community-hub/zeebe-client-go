@@ -35,6 +35,15 @@ const (
 	RequestTimeoutOffset          = 10 * time.Second
 	DefaultRequestTimeout         = 10 * time.Second
 	DefaultStreamEnabled          = false
+	// DefaultStreamRequestTimeout is the default max lifetime of a job stream; when it is reached the
+	// stream is closed and immediately reopened, which lets streams rebalance across gateways.
+	DefaultStreamRequestTimeout = 8 * time.Hour
+	// DefaultStreamInactivityTimeout is the default time without any received job after which a job
+	// stream is considered stalled and is recreated.
+	DefaultStreamInactivityTimeout = 10 * time.Minute
+	// DefaultStreamTimeoutJitter spreads each stream's max lifetime and inactivity timeout uniformly
+	// over [0.9x, 1.0x] of the configured value.
+	DefaultStreamTimeoutJitter = 0.1
 )
 
 var defaultBackoffSupplier = NewExponentialBackoffBuilder().Build()
@@ -78,6 +87,15 @@ type JobWorkerBuilder struct {
 	streamEnabled        bool
 	streamNoJobsBackoff  BackoffSupplier
 	streamRequestTimeout time.Duration
+
+	streamInactivityTimeout time.Duration
+	streamTimeoutJitter     float64
+}
+
+// JobWorkerStreamMetrics can optionally be implemented by a JobWorkerMetrics to count job stream recycles.
+// reason is commands.StreamRecycleReasonLifetime or commands.StreamRecycleReasonInactivity.
+type JobWorkerStreamMetrics interface {
+	IncrementStreamRecycledCount(jobType string, reason string)
 }
 
 type JobWorkerBuilderStep1 interface {
@@ -121,8 +139,20 @@ type JobWorkerBuilderStep3 interface {
 	// while polls return no jobs; a poll that activates jobs resets the interval to PollInterval.
 	// Defaults to DefaultStreamNoJobsBackoffSupplier. Pass nil to disable (poll at a fixed interval).
 	StreamNoJobsBackoffSupplier(BackoffSupplier) JobWorkerBuilderStep3
-	// StreamRequestTimeout If streaming is enabled, this sets the timeout on the underlying job stream. It's useful to set a few hours to load-balance your streams over time.
+	// StreamRequestTimeout If streaming is enabled, this sets the max lifetime of the underlying job stream
+	// (default DefaultStreamRequestTimeout, 8h, jittered). When it is reached, the stream is closed and
+	// immediately reopened, which lets streams load-balance across gateways over time. Zero or a negative
+	// value disables it.
 	StreamRequestTimeout(time.Duration) JobWorkerBuilderStep3
+	// StreamInactivityTimeout If streaming is enabled, the stream is cancelled and recreated when no job was
+	// received on it for this duration (default DefaultStreamInactivityTimeout, 10m, jittered). The timer
+	// resets on every received job. It must be less than the stream request timeout, otherwise it is
+	// disabled. Zero or a negative value disables the watchdog.
+	StreamInactivityTimeout(time.Duration) JobWorkerBuilderStep3
+	// StreamTimeoutJitter Sets the fraction (0..1, default DefaultStreamTimeoutJitter) by which each
+	// stream's request and inactivity timeouts are randomly shortened, so streams of workers started
+	// together are not all recycled at the same moment. Zero disables jitter.
+	StreamTimeoutJitter(float64) JobWorkerBuilderStep3
 	// Open the job worker and start polling and handling jobs
 	Open() JobWorker
 }
@@ -220,6 +250,28 @@ func (builder *JobWorkerBuilder) StreamRequestTimeout(requestTimeout time.Durati
 	return builder
 }
 
+func (builder *JobWorkerBuilder) StreamInactivityTimeout(timeout time.Duration) JobWorkerBuilderStep3 {
+	builder.streamInactivityTimeout = timeout
+	return builder
+}
+
+func (builder *JobWorkerBuilder) StreamTimeoutJitter(jitter float64) JobWorkerBuilderStep3 {
+	builder.streamTimeoutJitter = jitter
+	return builder
+}
+
+// effectiveStreamInactivityTimeout returns the inactivity timeout to use, disabling it when it is not
+// less than the stream request timeout.
+func (builder *JobWorkerBuilder) effectiveStreamInactivityTimeout() time.Duration {
+	inactivity := builder.streamInactivityTimeout
+	if inactivity > 0 && builder.streamRequestTimeout > 0 && inactivity >= builder.streamRequestTimeout {
+		log.Printf("Stream inactivity timeout %v must be less than the stream request timeout %v; disabling the inactivity watchdog for job type '%s'\n",
+			inactivity, builder.streamRequestTimeout, builder.request.Type)
+		return 0
+	}
+	return inactivity
+}
+
 func (builder *JobWorkerBuilder) Open() JobWorker {
 	jobQueue := make(chan entities.Job, builder.maxJobsActive)
 	workerFinished := make(chan bool, builder.maxJobsActive)
@@ -277,6 +329,9 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 			FetchVariables(builder.request.FetchVariable...).
 			TenantIds(builder.request.TenantIds...).
 			WorkerName(builder.request.Worker).
+			InactivityTimeout(builder.effectiveStreamInactivityTimeout()).
+			TimeoutJitter(builder.streamTimeoutJitter).
+			OnRecycle(builder.streamRecycleCallback()).
 			RequestTimeout(builder.streamRequestTimeout)
 		streamer := jobStreamer{
 			workerFinished:  workerFinished,
@@ -301,6 +356,15 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 	}
 }
 
+func (builder *JobWorkerBuilder) streamRecycleCallback() func(string) {
+	streamMetrics, ok := builder.metrics.(JobWorkerStreamMetrics)
+	if !ok {
+		return nil
+	}
+	jobType := builder.request.Type
+	return func(reason string) { streamMetrics.IncrementStreamRecycledCount(jobType, reason) }
+}
+
 // NewJobWorkerBuilder should use the same retryPredicate used by the CredentialProvider (ShouldRetry method):
 //
 //	credsProvider, _ := zbc.NewOAuthCredentialsProvider(...)
@@ -323,7 +387,10 @@ func NewJobWorkerBuilder(gatewayClient pb.GatewayClient, jobClient JobClient, re
 		shouldRetry:     retryPred,
 		backoffSupplier: defaultBackoffSupplier,
 
-		streamNoJobsBackoff: DefaultStreamNoJobsBackoffSupplier,
+		streamNoJobsBackoff:     DefaultStreamNoJobsBackoffSupplier,
+		streamRequestTimeout:    DefaultStreamRequestTimeout,
+		streamInactivityTimeout: DefaultStreamInactivityTimeout,
+		streamTimeoutJitter:     DefaultStreamTimeoutJitter,
 	}
 
 }

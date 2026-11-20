@@ -79,14 +79,26 @@ jobWorker := s.client.NewJobWorker().
 		fmt.Printf("Activated job with key: %d", job.Key)
 	}).
 	StreamEnabled(true).
-  StreamRequestTimeout(4 * time.Hour)
+	StreamRequestTimeout(4 * time.Hour).
 	Open()
 ```
 
 This configures the job worker to open a long-living stream between itself and a gateway, through which activated jobs will be pushed. **If the stream is closed for any reason - e.g. the gateway crashed, there is a temporary network issue, etc. - it is automatically recreated.**
 
+#### Stream lifetime and inactivity watchdog
+
+Two safeguards keep streams healthy and balanced. Both are on by default (matching the Camunda Java client):
+
+| Builder option | Default | Effect |
+| --- | --- | --- |
+| `StreamRequestTimeout` | 8 h | Max lifetime of a stream. When reached, the stream is closed and a new one is opened immediately, so streams move to new gateways after a scale-out or restart. |
+| `StreamInactivityTimeout` | 10 min | If no job arrives on the stream for this long, the stream is cancelled and recreated. The timer resets on every received job, and is paused while the worker applies backpressure. Must be less than `StreamRequestTimeout`, otherwise it is disabled. |
+| `StreamTimeoutJitter` | 0.1 | Each stream's lifetime and inactivity timeout are drawn uniformly from `[0.9x, 1.0x]` of the configured value, so a fleet started together does not recycle all its streams at once. |
+
+Pass `0` to disable either timeout or the jitter. Jobs already received on a stream are always handed to the worker before the stream is recycled, and a recycle is not treated as an error (no backoff). Each recycle is logged at debug level, and if your `Metrics` implementation also implements `worker.JobWorkerStreamMetrics`, `IncrementStreamRecycledCount(jobType, reason)` is called (`reason` is `lifetime` or `inactivity`).
+
 :::note
-It's also possible to set an overall timeout - called `streamTimeout` - which ensures the underlying long-living stream is refreshed once the timeout is reached. This is useful to trigger load balancing of your workers overtime, instead of having workers pinned to the same gateway.
+Recycling only rebalances streams if a new stream can land on a different gateway. That is the case with request-level (L7) load balancing - e.g. Envoy, nginx gRPC, or the Camunda SaaS ingress. With a plain L4 load balancer the client keeps reusing the same HTTP/2 connection, so the new stream goes to the same gateway; in that setup use DNS-based/client-side load balancing (e.g. a `dns:///` target with gRPC's `round_robin` policy) to spread streams across gateways.
 :::
 
 #### Backfilling
