@@ -142,6 +142,67 @@ func TestStreamJobsCommandCallerCancelIsNotARecycle(t *testing.T) {
 	assert.Empty(t, rec.get())
 }
 
+func TestStreamJobsCommandDebugLoggerReceivesRecycleMessages(t *testing.T) {
+	client, _ := blockingStream(t)
+	var mu sync.Mutex
+	var msgs []string
+
+	err := NewStreamJobsCommand(client, noRetry).JobType("foo").Consumer(make(chan entities.Job, 1)).
+		DebugLogger(func(msg string) {
+			mu.Lock()
+			msgs = append(msgs, msg)
+			mu.Unlock()
+		}).RequestTimeout(50 * time.Millisecond).Send(context.Background())
+
+	require.NoError(t, err)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, msgs, 1)
+	assert.Contains(t, msgs[0], "foo")
+	assert.Contains(t, msgs[0], StreamRecycleReasonLifetime)
+}
+
+func TestStreamJobsCommandInactivityWatchdogPausesWhileDeliveryBlocked(t *testing.T) {
+	client, jobs := blockingStream(t)
+	// unbuffered consumer: delivery of the first job blocks until the test reads it
+	consumer := make(chan entities.Job)
+	rec := &recycles{}
+
+	sendDone := make(chan error, 1)
+	go func() {
+		sendDone <- NewStreamJobsCommand(client, noRetry).JobType("foo").Consumer(consumer).
+			InactivityTimeout(100 * time.Millisecond).OnRecycle(rec.add).
+			RequestTimeout(time.Hour).Send(context.Background())
+	}()
+
+	jobs <- &pb.ActivatedJob{Key: 1}
+
+	// keep delivery blocked for longer than the inactivity timeout: the watchdog must not recycle
+	// the stream while a job is still waiting to be handed to the consumer
+	blocked := 300 * time.Millisecond
+	time.Sleep(blocked)
+	select {
+	case err := <-sendDone:
+		t.Fatalf("stream recycled while delivery was blocked: %v", err)
+	default:
+	}
+
+	// release the consumer: the blocked job is delivered exactly once
+	start := time.Now()
+	job := <-consumer
+	assert.EqualValues(t, 1, job.Key)
+	select {
+	case extra := <-consumer:
+		t.Fatalf("job delivered more than once: %v", extra.Key)
+	default:
+	}
+
+	// a fresh inactivity interval elapses before the watchdog recycles the stream
+	require.NoError(t, <-sendDone)
+	assert.GreaterOrEqual(t, time.Since(start), 100*time.Millisecond)
+	assert.Equal(t, []string{StreamRecycleReasonInactivity}, rec.get())
+}
+
 func TestJitterDurationSpreadsAcrossWindow(t *testing.T) {
 	d := 8 * time.Hour
 	lower := time.Duration(float64(d) * 0.9)

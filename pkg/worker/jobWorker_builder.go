@@ -90,6 +90,7 @@ type JobWorkerBuilder struct {
 
 	streamInactivityTimeout time.Duration
 	streamTimeoutJitter     float64
+	streamDebugLogger       func(msg string)
 }
 
 // JobWorkerStreamMetrics can optionally be implemented by a JobWorkerMetrics to count job stream recycles.
@@ -153,6 +154,9 @@ type JobWorkerBuilderStep3 interface {
 	// stream's request and inactivity timeouts are randomly shortened, so streams of workers started
 	// together are not all recycled at the same moment. Zero disables jitter.
 	StreamTimeoutJitter(float64) JobWorkerBuilderStep3
+	// StreamDebugLogger sets the sink for routine (debug-level) stream lifecycle messages, such as
+	// stream recycles. Passing nil disables them. When unset, they go to the standard logger.
+	StreamDebugLogger(func(msg string)) JobWorkerBuilderStep3
 	// Open the job worker and start polling and handling jobs
 	Open() JobWorker
 }
@@ -260,6 +264,11 @@ func (builder *JobWorkerBuilder) StreamTimeoutJitter(jitter float64) JobWorkerBu
 	return builder
 }
 
+func (builder *JobWorkerBuilder) StreamDebugLogger(logger func(msg string)) JobWorkerBuilderStep3 {
+	builder.streamDebugLogger = logger
+	return builder
+}
+
 // effectiveStreamInactivityTimeout returns the inactivity timeout to use, disabling it when it is not
 // less than the stream request timeout.
 func (builder *JobWorkerBuilder) effectiveStreamInactivityTimeout() time.Duration {
@@ -332,6 +341,7 @@ func (builder *JobWorkerBuilder) Open() JobWorker {
 			InactivityTimeout(builder.effectiveStreamInactivityTimeout()).
 			TimeoutJitter(builder.streamTimeoutJitter).
 			OnRecycle(builder.streamRecycleCallback()).
+			DebugLogger(builder.streamDebugLogger).
 			RequestTimeout(builder.streamRequestTimeout)
 		streamer := jobStreamer{
 			workerFinished:  workerFinished,

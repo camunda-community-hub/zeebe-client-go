@@ -16,6 +16,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -59,6 +60,9 @@ type StreamJobsCommandStep3 interface {
 	// max lifetime (reason StreamRecycleReasonLifetime) or the inactivity watchdog fired
 	// (reason StreamRecycleReasonInactivity).
 	OnRecycle(func(reason string)) StreamJobsCommandStep3
+	// DebugLogger sets the sink for routine (debug-level) stream lifecycle messages, such as stream
+	// recycles. Passing nil disables them. When unset, they go to the standard logger.
+	DebugLogger(func(msg string)) StreamJobsCommandStep3
 }
 
 const (
@@ -77,6 +81,7 @@ type StreamJobsCommand struct {
 	inactivityTimeout time.Duration
 	jitter            float64
 	onRecycle         func(reason string)
+	debugLog          func(msg string)
 }
 
 func (cmd *StreamJobsCommand) JobType(jobType string) StreamJobsCommandStep2 {
@@ -134,6 +139,21 @@ func (cmd *StreamJobsCommand) OnRecycle(onRecycle func(reason string)) StreamJob
 	return cmd
 }
 
+func (cmd *StreamJobsCommand) DebugLogger(logger func(msg string)) StreamJobsCommandStep3 {
+	cmd.debugLog = logger
+	return cmd
+}
+
+// debugf sends a routine (debug-level) stream lifecycle message to the configured DebugLogger sink,
+// or to the standard logger when no sink was set.
+func (cmd *StreamJobsCommand) debugf(format string, args ...interface{}) {
+	if cmd.debugLog != nil {
+		cmd.debugLog(fmt.Sprintf(format, args...))
+		return
+	}
+	log.Printf(format, args...)
+}
+
 // JitterDuration returns a duration chosen uniformly from [(1-jitter)*d, d]. Non-positive durations and
 // jitter values are returned unchanged.
 func JitterDuration(d time.Duration, jitter float64) time.Duration {
@@ -189,7 +209,7 @@ func (cmd *StreamJobsCommand) Send(ctx context.Context) error {
 
 	finish := func(err error) error {
 		if reason := recycled(); reason != "" && ctx.Err() == nil {
-			log.Printf("[debug] recycling job stream for job type '%s' (reason: %s)\n", cmd.request.Type, reason)
+			cmd.debugf("recycling job stream for job type '%s' (reason: %s)\n", cmd.request.Type, reason)
 			if cmd.onRecycle != nil {
 				cmd.onRecycle(reason)
 			}
