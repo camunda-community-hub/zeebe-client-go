@@ -168,7 +168,12 @@ func TestErrorBackoffUnaffectedByStreamBackoff(t *testing.T) {
 func TestBuilderWiresStreamNoJobsBackoff(t *testing.T) {
 	b := NewJobWorkerBuilder(nil, nil, nil).(*JobWorkerBuilder)
 	require.NotNil(t, b.streamNoJobsBackoff)
-	require.Equal(t, 60*time.Second, b.streamNoJobsBackoff.SupplyRetryDelay(60*time.Second))
+	// default supplier applies ±10% jitter then clamps to the 60s max
+	for i := 0; i < 100; i++ {
+		d := b.streamNoJobsBackoff.SupplyRetryDelay(60 * time.Second)
+		require.GreaterOrEqual(t, d, 54*time.Second)
+		require.LessOrEqual(t, d, 60*time.Second)
+	}
 	b.StreamNoJobsBackoffSupplier(nil)
 	require.Nil(t, b.streamNoJobsBackoff)
 }
