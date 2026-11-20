@@ -16,6 +16,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"io"
 	"reflect"
 	"testing"
@@ -240,5 +241,46 @@ func TestStreamJobsCommandWithTenantIds(t *testing.T) {
 
 	if err != nil {
 		assert.NoError(t, err, "Failed to send request")
+	}
+}
+
+// Regression: after a retryable Recv error the stream is reopened and the loop must continue without
+// delivering a nil job; the replacement stream's jobs must reach the consumer intact.
+func TestStreamJobsCommandDeliversJobsAfterSuccessfulReopen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_pb.NewMockGatewayClient(ctrl)
+	first := mock_pb.NewMockGateway_StreamActivatedJobsClient(ctrl)
+	second := mock_pb.NewMockGateway_StreamActivatedJobsClient(ctrl)
+
+	retryable := errors.New("transient receive failure")
+	job := pb.ActivatedJob{Key: 42, Type: "foo", Worker: DefaultJobWorkerName}
+
+	gomock.InOrder(
+		client.EXPECT().StreamActivatedJobs(gomock.Any(), gomock.Any()).Return(first, nil),
+		first.EXPECT().Recv().Return(nil, retryable),
+		client.EXPECT().StreamActivatedJobs(gomock.Any(), gomock.Any()).Return(second, nil),
+		second.EXPECT().Recv().Return(&job, nil),
+		second.EXPECT().Recv().Return(nil, io.EOF),
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), utils.DefaultTestTimeout)
+	defer cancel()
+
+	jobsChan := make(chan entities.Job, 4)
+	err := NewStreamJobsCommand(client, func(_ context.Context, err error) bool {
+		return err == retryable
+	}).JobType("foo").Consumer(jobsChan).Send(ctx)
+	assert.NoError(t, err)
+
+	close(jobsChan)
+	var received []entities.Job
+	for j := range jobsChan {
+		received = append(received, j)
+	}
+	if assert.Len(t, received, 1) {
+		assert.NotNil(t, received[0].ActivatedJob)
+		assert.Equal(t, int64(42), received[0].GetKey())
 	}
 }
