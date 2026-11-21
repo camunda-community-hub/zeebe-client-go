@@ -17,6 +17,16 @@ jobs:
         run: |
           RELEASE_VERSION=$(echo $GITHUB_REF | egrep -o "[0-9]\.[0-9]\.[0-9]{1,2}(-.*)?")
           echo "RELEASE_VERSION=$RELEASE_VERSION" >> "$GITHUB_ENV"
+      - name: Find previous release tag
+        shell: bash
+        run: |
+          # Release tags sit on release-branch commits that never reach main,
+          # so GitHub cannot find the previous tag in the new tag's history and
+          # would generate notes for the whole project history. Name it explicitly.
+          git fetch --quiet --tags origin
+          PREVIOUS_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -vx "v${RELEASE_VERSION}" | head -n 1)
+          echo "Previous release tag: ${PREVIOUS_TAG:-<none>}"
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
@@ -46,5 +56,6 @@ jobs:
           artifacts: "cmd/zbctl/dist/*"
           artifactErrorsFailBuild: true
           generateReleaseNotes: true
+          generateReleaseNotesPreviousTag: ${{ env.PREVIOUS_TAG }}
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: v${{ env.RELEASE_VERSION }}
